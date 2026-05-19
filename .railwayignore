@@ -1,0 +1,7 @@
+*.db
+.env
+config.json
+__pycache__
+*.pyc
+.git
+trail_server.py
