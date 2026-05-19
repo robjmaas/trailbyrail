@@ -115,6 +115,8 @@ def proxy(url, *, timeout=30, content_type='application/json', disposition=None)
 
 @app.route('/api/search-gate', methods=['POST'])
 def api_search_gate():
+    if cfg('PAYWALL_ENABLED') != '1':
+        return jsonify({'ok': True, 'used': 0, 'limit': FREE_LIMIT, 'pro': True})
     ip = client_ip()
     db = get_db()
     # Pro users have unlimited searches
