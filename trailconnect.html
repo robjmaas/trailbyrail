@@ -629,10 +629,10 @@ const ACTIVITY_CONFIG = {
     fromStop: {min:500,  max:30000, step:500,  value:5000,  ticks:['500m','8km','15km','22km','30km']},
   },
   cycling:  {
-    toStopLabel:   '🚴 Cycle from home to stop',
-    fromStopLabel: '🚴 Cycle from stop to trailhead',
-    toStop:   {min:1000, max:50000, step:1000, value:30000, ticks:['1km','12km','25km','37km','50km']},
-    fromStop: {min:1000, max:50000, step:1000, value:30000, ticks:['1km','12km','25km','37km','50km']},
+    toStopLabel:   '🚴 Cycle to station (local leg)',
+    fromStopLabel: '🚴 Cycle from station to trailhead',
+    toStop:   {min:500,  max:20000, step:500,  value:5000,  ticks:['500m','5km','10km','15km','20km']},
+    fromStop: {min:1000, max:50000, step:1000, value:20000, ticks:['1km','13km','25km','37km','50km']},
   },
   swimming: {
     toStopLabel:   '🚶 Walk from home to stop',
