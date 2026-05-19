@@ -749,22 +749,37 @@ async function fetchStops(lat, lon, radiusM, modes) {
   const r = Math.round(radiusM);
   const a = `around:${r},${lat},${lon}`;
   const lines = [
-    modes.includes('bus')   && `node["highway"="bus_stop"](${a});\n    node["amenity"="bus_station"](${a});`,
+    modes.includes('bus')   && `node["highway"="bus_stop"](${a});
+    node["amenity"="bus_station"](${a});
+    way["amenity"="bus_station"](${a});`,
     modes.includes('tram')  && `node["railway"="tram_stop"](${a});`,
-    modes.includes('train') && `node["railway"="station"](${a});\n    node["railway"="halt"](${a});`,
-    modes.includes('metro') && `node["railway"="subway_entrance"](${a});`,
+    modes.includes('train') && `node["railway"="station"](${a});
+    node["railway"="halt"](${a});
+    node["public_transport"="station"]["train"="yes"](${a});
+    way["railway"="station"](${a});
+    relation["railway"="station"](${a});
+    way["public_transport"="station"]["train"="yes"](${a});`,
+    modes.includes('metro') && `node["railway"="subway_entrance"](${a});
+    node["railway"="station"]["subway"="yes"](${a});`,
   ].filter(Boolean).join('\n    ');
   if (!lines) return [];
-  const q = `[out:json][timeout:25];(\n    ${lines}\n  );out body;`;
+  // out center: gives lat/lon for ways and relations, not just nodes
+  const q = `[out:json][timeout:25];(\n    ${lines}\n  );out center body;`;
   const data = await overpass(q);
-  return data.elements.filter(e => e.lat && e.lon).map(e => ({
-    id: e.id, lat: e.lat, lon: e.lon,
-    name: e.tags?.name || e.tags?.ref || 'Unnamed stop',
-    type: stopType(e.tags || {}),
-    icon: stopIcon(e.tags || {}),
-    lines: e.tags?.route_ref || e.tags?.ref || '',
-    distFromHome: dist(lat, lon, e.lat, e.lon)
-  }));
+  return data.elements.map(e => {
+    // nodes have lat/lon directly; ways/relations have a center object
+    const lat2 = e.lat ?? e.center?.lat;
+    const lon2 = e.lon ?? e.center?.lon;
+    if (!lat2 || !lon2) return null;
+    return {
+      id: e.id, lat: lat2, lon: lon2,
+      name: e.tags?.name || e.tags?.ref || 'Unnamed stop',
+      type: stopType(e.tags || {}),
+      icon: stopIcon(e.tags || {}),
+      lines: e.tags?.route_ref || e.tags?.ref || '',
+      distFromHome: dist(lat, lon, lat2, lon2)
+    };
+  }).filter(Boolean);
 }
 
 // ── Outdooractive ─────────────────────────────────────────────────────────────
