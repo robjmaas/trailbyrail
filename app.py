@@ -59,6 +59,15 @@ def init_db():
         stripe_session TEXT,
         created_at     TEXT    DEFAULT (datetime('now'))
     )''')
+    db.execute('''CREATE TABLE IF NOT EXISTS reviews (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        trail_id   TEXT    NOT NULL,
+        trail_name TEXT    NOT NULL,
+        rating     INTEGER NOT NULL CHECK(rating BETWEEN 1 AND 5),
+        comment    TEXT,
+        ip         TEXT,
+        created_at TEXT    DEFAULT (datetime('now'))
+    )''')
     db.commit()
     db.close()
 
@@ -294,6 +303,54 @@ def api_custom_routes():
             routes = [r for r in routes
                       if haversine_m(data['lat'], data['lon'], r['lat'], r['lon']) <= r_m]
         return jsonify(routes)
+
+@app.route('/api/weather', methods=['POST'])
+def api_weather():
+    data = request.json
+    url  = (f"https://api.open-meteo.com/v1/forecast"
+            f"?latitude={data['lat']}&longitude={data['lon']}"
+            f"&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum"
+            f"&forecast_days=3&timezone=auto")
+    r = requests.get(url, timeout=10)
+    r.raise_for_status()
+    return Response(r.content, content_type='application/json')
+
+@app.route('/api/reviews', methods=['POST'])
+def api_reviews():
+    trail_id = request.json.get('trail_id', '')
+    db = get_db()
+    rows = db.execute(
+        'SELECT rating, comment, created_at FROM reviews WHERE trail_id=? ORDER BY created_at DESC',
+        (trail_id,)
+    ).fetchall()
+    avg_row = db.execute(
+        'SELECT AVG(rating) as avg, COUNT(*) as cnt FROM reviews WHERE trail_id=?',
+        (trail_id,)
+    ).fetchone()
+    db.close()
+    return jsonify({
+        'reviews': [dict(r) for r in rows],
+        'avg': round(avg_row['avg'], 1) if avg_row['avg'] else None,
+        'count': avg_row['cnt']
+    })
+
+@app.route('/api/review-add', methods=['POST'])
+def api_review_add():
+    data = request.json
+    trail_id   = data.get('trail_id', '').strip()
+    trail_name = data.get('trail_name', '').strip()
+    rating     = int(data.get('rating', 0))
+    comment    = data.get('comment', '').strip()
+    if not trail_id or not 1 <= rating <= 5:
+        return jsonify({'error': 'Invalid data'}), 400
+    db = get_db()
+    cur = db.execute(
+        'INSERT INTO reviews (trail_id, trail_name, rating, comment, ip) VALUES (?,?,?,?,?)',
+        (trail_id, trail_name, rating, comment, client_ip())
+    )
+    db.commit()
+    db.close()
+    return jsonify({'ok': True, 'id': cur.lastrowid})
 
 # ── Run ───────────────────────────────────────────────────────────────────────
 

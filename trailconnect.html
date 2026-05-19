@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TrailbyRail</title>
 <link href="https://fonts.googleapis.com/css2?family=Righteous&family=Public+Sans:wght@300;400;600;700&family=Playfair+Display:ital,wght@1,700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{--forest-dark:#0d2416;--forest-med:#1a4a2f;--moss:#3a7d52;--trail-tan:#e8a84a;--amber:#f0c060;--cloud:#f5f7f2;--sunrise:#e8622a;--cream:#fffdf7;--shadow:rgba(13,36,22,0.22)}
@@ -157,6 +158,45 @@ details.api-settings[open] summary{margin-bottom:.85rem}
 .deco-2{bottom:18%;right:3%;font-size:12rem;opacity:.05;animation:sway 7s ease-in-out infinite 1s}
 @keyframes sway{0%,100%{transform:rotate(-2deg)}50%{transform:rotate(2deg)}}
 @media(max-width:700px){.form-row{grid-template-columns:1fr}.journey-chain{padding:.9rem .5rem}}
+/* ── Weather ── */
+.weather-row{display:flex;gap:.5rem;margin-top:.75rem;flex-wrap:wrap}
+.weather-day{flex:1;min-width:70px;background:var(--cloud);border-radius:10px;padding:.5rem .6rem;text-align:center;font-size:.78rem;color:var(--forest-dark)}
+.weather-emoji{font-size:1.4rem;display:block;margin-bottom:.2rem}
+.weather-temp{font-weight:700;font-size:.85rem}
+.weather-precip{font-size:.72rem;color:var(--moss)}
+/* ── Filter bar ── */
+.filter-bar{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;padding:.75rem 1rem;background:rgba(255,255,255,.1);border-radius:12px;border:1px solid rgba(255,255,255,.15);margin-bottom:1rem}
+.filter-bar label{color:#fff;font-size:.82rem;font-weight:600;display:flex;align-items:center;gap:.35rem;white-space:nowrap}
+.filter-bar input[type=number]{width:70px;padding:.3rem .5rem;border-radius:8px;border:1.5px solid var(--moss);font-size:.85rem;background:var(--cloud)}
+.filter-bar input[type=checkbox]{width:16px;height:16px;cursor:pointer}
+/* ── Done badge ── */
+.trail-card.done-trail{opacity:.8;border-left-color:var(--moss)!important}
+.act-btn.done-active{background:var(--moss);color:white;border-color:var(--moss)}
+/* ── Reviews ── */
+.review-panel{display:none;margin-top:1rem;padding:1.1rem;background:var(--cloud);border-radius:12px;border:2px solid var(--moss);animation:fadeIn .25s ease-out}
+.review-panel.open{display:block}
+.review-item{padding:.6rem 0;border-bottom:1px solid rgba(58,125,82,.15);font-size:.88rem;color:var(--forest-dark)}
+.review-item:last-child{border-bottom:none}
+.review-stars{color:#f0c060;font-size:1rem;margin-bottom:.15rem}
+.review-comment{color:var(--forest-dark);line-height:1.5}
+.review-date{font-size:.72rem;color:var(--moss);margin-top:.15rem}
+.review-form{margin-top:.75rem;padding-top:.75rem;border-top:1.5px dashed rgba(58,125,82,.3)}
+.star-input{display:flex;gap:.25rem;margin:.35rem 0}
+.star-input span{font-size:1.5rem;cursor:pointer;color:#ddd;transition:color .15s}
+.star-input span.active{color:#f0c060}
+.review-textarea{width:100%;border:1.5px solid var(--moss);border-radius:8px;padding:.5rem .75rem;font-family:'Public Sans',sans-serif;font-size:.88rem;resize:vertical;min-height:60px;margin-top:.35rem}
+.avg-rating{font-size:.78rem;font-weight:700;color:var(--trail-tan);background:rgba(240,192,96,.18);padding:.15rem .5rem;border-radius:6px;margin-left:.4rem}
+/* ── Saved searches ── */
+.saved-searches{display:flex;flex-wrap:wrap;gap:.45rem;margin-top:.75rem}
+.saved-chip{display:inline-flex;align-items:center;gap:.4rem;padding:.35rem .85rem;border:2px solid var(--moss);border-radius:20px;cursor:pointer;font-size:.82rem;font-weight:600;color:var(--forest-dark);background:white;transition:all .2s;white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis}
+.saved-chip:hover{background:var(--moss);color:white}
+.saved-chip .del-saved{margin-left:.2rem;opacity:.5;flex-shrink:0}
+.saved-chip .del-saved:hover{opacity:1}
+/* ── Seasonal chip ── */
+.season-chip{display:inline-flex;align-items:center;gap:.25rem;padding:.2rem .55rem;border-radius:12px;font-size:.72rem;font-weight:600;background:rgba(58,125,82,.12);border:1px solid rgba(58,125,82,.25);color:var(--forest-dark);margin-left:.35rem;vertical-align:middle}
+/* ── Share list / GPX pack ── */
+.meta-btn{padding:.45rem .85rem;border:1.5px solid rgba(255,255,255,.35);background:rgba(255,255,255,.1);color:#fff;border-radius:9px;font-size:.82rem;font-weight:600;font-family:'Public Sans',sans-serif;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:.3rem}
+.meta-btn:hover{background:rgba(255,255,255,.2);border-color:rgba(255,255,255,.6)}
 </style>
 </head>
 <body>
@@ -245,10 +285,14 @@ details.api-settings[open] summary{margin-bottom:.85rem}
         <div class="slider-ticks" id="walkFromStopTicks"><span>500m</span><span>4km</span><span>7.5km</span><span>11km</span><span>15km</span></div>
       </div>
 
-      <button type="submit" class="btn-find" id="findBtn">
-        <span style="position:relative;z-index:1">🔍 Find Trails</span>
-      </button>
+      <div style="display:flex;gap:.75rem;align-items:stretch">
+        <button type="submit" class="btn-find" id="findBtn" style="flex:1">
+          <span style="position:relative;z-index:1">🔍 Find Trails</span>
+        </button>
+        <button type="button" class="act-btn" id="saveSearchBtn" onclick="saveCurrentSearch()" title="Save this search" style="padding:.9rem 1rem;font-size:1rem;border-radius:12px;border:2px solid var(--moss);flex-shrink:0">💾 Save</button>
+      </div>
       <div class="query-counter" id="queryCounter"></div>
+      <div id="savedSearchesRow" class="saved-searches"></div>
 
     </form>
   </div>
@@ -286,6 +330,10 @@ details.api-settings[open] summary{margin-bottom:.85rem}
 
 <script>
 let homeLat, homeLon, currentTrails = [], selectedCoords = null;
+let doneTrails = new Set(JSON.parse(localStorage.getItem('doneTrails') || '[]'));
+let reviewsLoaded = {};
+let reviewRatings = {};
+let lastSearchParams = null;
 
 // Autocomplete
 const locInput = document.getElementById('location');
@@ -801,16 +849,41 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
       <div class="results-meta">
         <span class="results-count">${results.length} trail${results.length !== 1 ? 's' : ''} found</span>
         <span class="results-hint">≤${fmt(walkToStop)} to stop · ≤${fmt(walkFromStop)} stop to trail</span>
+        <div style="display:flex;gap:.45rem;flex-wrap:wrap">
+          <button class="meta-btn" onclick="downloadAllGPX()">📦 Download all GPX</button>
+          <button class="meta-btn" id="shareListBtn" onclick="shareList()">🔗 Share list</button>
+        </div>
       </div>
-      <div class="results-grid">
+      <div class="filter-bar" id="filterBar">
+        <label>Min km <input type="number" id="filterMinKm" min="0" step="0.5" placeholder="0" oninput="applyFilters()"></label>
+        <label>Max km <input type="number" id="filterMaxKm" min="0" step="0.5" placeholder="∞" oninput="applyFilters()"></label>
+        <label><input type="checkbox" id="filterHideCompleted" onchange="applyFilters()"> Hide completed</label>
+      </div>
+      <div class="results-grid" id="resultsGrid">
         ${results.map((t, i) => renderCard(t, i)).join('')}
       </div>`;
+    results.forEach((t, i) => fetchWeatherForCard(i, t.lat, t.lon));
 
   } catch(err) {
     btn.disabled = false;
     resultsDiv.innerHTML = `<div class="error">⚠️ ${err.message}</div>`;
   }
 });
+
+function seasonalChip(type) {
+  const m = new Date().getMonth(); // 0=Jan
+  const chips = {
+    hiking:   m >= 2  && m <= 4  ? '🌸 Spring'
+            : m >= 5  && m <= 7  ? '☀️ Summer'
+            : m >= 8  && m <= 10 ? '🍂 Autumn'
+            : '❄️ Winter',
+    cycling:  (m >= 10 || m <= 1) ? '🧤 Dress warm' : '✅ Good conditions',
+    swimming: (m >= 5  && m <= 7) ? '🏊 In season'  : '❄️ Off season',
+    skiing:   (m >= 11 || m <= 1) ? '⛷️ In season'  : '🌱 Off season',
+  };
+  const text = chips[type] || chips.hiking;
+  return `<span class="season-chip">${text}</span>`;
+}
 
 function renderCard(trail, idx) {
   const best = trail.stops[0];
@@ -820,6 +893,7 @@ function renderCard(trail, idx) {
                    : trail.type === 'skiing' ? 'badge-skiing'
                    : 'badge-nature';
   const legLabel = trail.type === 'cycling' ? 'cycle' : 'walk';
+  const isDone = doneTrails.has(trail.name);
 
   const stopItems = trail.stops.map((s, si) => `
     <a href="https://www.google.com/maps/dir/?api=1&origin=${homeLat},${homeLon}&destination=${s.lat},${s.lon}&travelmode=transit"
@@ -842,18 +916,24 @@ function renderCard(trail, idx) {
 
   const srcPill = trail.source === 'oda'
     ? '<span class="source-pill src-oda">Outdooractive</span>'
+    : trail.source === 'custom'
+    ? '<span class="source-pill src-custom">My Route</span>'
     : '<span class="source-pill src-osm">OSM</span>';
   const diffLabel = trail.difficulty
     ? `<span class="diff-${trail.difficulty}">● ${trail.difficulty}</span>` : '';
   const elevLabel = trail.elevGain ? `↑${trail.elevGain}m` : '';
 
-  return `<div class="trail-card" style="animation-delay:${idx * .08}s">
+  const avgBadge = `<span class="avg-rating" id="avg-${idx}"></span>`;
+  return `<div class="trail-card${isDone ? ' done-trail' : ''}" id="card-${idx}" style="animation-delay:${idx * .08}s${isDone ? ';border-left-color:var(--moss)' : ''}">
     <div class="trail-header">
       <div>
-        <div class="trail-name">${trail.icon} ${trail.name}${srcPill}</div>
+        <div class="trail-name">${trail.icon} ${trail.name}${srcPill}${avgBadge}</div>
         <div class="trail-sub">${[trail.sub, diffLabel, elevLabel].filter(Boolean).join(' · ')}</div>
       </div>
-      <span class="type-badge ${badgeClass}">${trail.label}${trail.isLoop ? ' 🔁' : ''}</span>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.4rem">
+        <span class="type-badge ${badgeClass}">${trail.label}${trail.isLoop ? ' 🔁' : ''}</span>
+        ${seasonalChip(trail.type)}
+      </div>
     </div>
 
     <div class="journey-chain">
@@ -881,6 +961,8 @@ function renderCard(trail, idx) {
       </div>
     </div>
 
+    <div id="weather-${idx}"></div>
+
     <div class="stops-section">
       <div class="stops-title">🚌 ${trail.stops.length} connecting stop${trail.stops.length !== 1 ? 's' : ''}</div>
       <div class="stop-list">${stopItems}</div>
@@ -894,6 +976,21 @@ function renderCard(trail, idx) {
       <button class="act-btn" onclick="toggleLoopPanel(${idx})">🔁 Loop</button>
       <button class="act-btn" onclick="downloadGPX(${idx})">📥 GPX</button>
       <button class="act-btn" id="shareBtn-${idx}" onclick="shareTrail(${idx})">🔗 Share</button>
+      <button class="act-btn${isDone ? ' done-active' : ''}" id="doneBtn-${idx}" onclick="toggleDone(${idx})">${isDone ? '✅ Done' : '🏅 Done'}</button>
+      <button class="act-btn" id="reviewBtn-${idx}" onclick="toggleReviews(${idx})">💬 Reviews</button>
+    </div>
+
+    <div id="review-${idx}" class="review-panel">
+      <div id="review-list-${idx}"><span style="color:var(--moss);font-size:.88rem">Loading…</span></div>
+      <div class="review-form">
+        <div style="font-weight:600;font-size:.85rem;color:var(--forest-dark);margin-bottom:.3rem">Leave a review</div>
+        <div class="star-input" id="stars-${idx}">
+          ${[1,2,3,4,5].map(n => `<span data-n="${n}" onclick="setStarRating(${idx},${n})">★</span>`).join('')}
+        </div>
+        <textarea class="review-textarea" id="reviewComment-${idx}" placeholder="Share your experience…" rows="2"></textarea>
+        <button class="act-btn primary" style="margin-top:.5rem" onclick="submitReview(${idx})">Submit</button>
+        <span id="reviewStatus-${idx}" style="font-size:.82rem;margin-left:.5rem"></span>
+      </div>
     </div>
 
     <div id="loop-${idx}" class="loop-panel">
@@ -1123,7 +1220,302 @@ document.getElementById('locationBtn').addEventListener('click', getLocation);
 window.addEventListener('load', () => {
   getLocation();
   loadMyRoutes();
+  renderSavedSearchChips();
+  checkHashAndAutoSearch();
 });
+
+// ── Weather ───────────────────────────────────────────────────────────────────
+const WMO_EMOJI = {
+  0:'☀️', 1:'⛅', 2:'⛅', 3:'⛅',
+  45:'🌫️', 48:'🌫️',
+  51:'🌧️', 53:'🌧️', 55:'🌧️', 56:'🌧️', 57:'🌧️', 61:'🌧️', 63:'🌧️', 65:'🌧️', 66:'🌧️', 67:'🌧️',
+  71:'❄️', 73:'❄️', 75:'❄️', 77:'❄️',
+  80:'🌦️', 81:'🌦️', 82:'🌦️',
+  95:'⛈️', 96:'⛈️', 99:'⛈️'
+};
+function wmoEmoji(code) {
+  return WMO_EMOJI[code] || '🌡️';
+}
+
+async function fetchWeatherForCard(idx, lat, lon) {
+  const el = document.getElementById(`weather-${idx}`);
+  if (!el) return;
+  try {
+    const r = await fetch('/api/weather', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({lat, lon})
+    });
+    const d = await r.json();
+    const daily = d.daily;
+    if (!daily) return;
+    const days = [0,1,2].map(i => {
+      const date = new Date(daily.time[i]);
+      const dayName = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : date.toLocaleDateString('en', {weekday:'short'});
+      const emoji = wmoEmoji(daily.weathercode[i]);
+      const maxT = Math.round(daily.temperature_2m_max[i]);
+      const minT = Math.round(daily.temperature_2m_min[i]);
+      const precip = daily.precipitation_sum[i];
+      return `<div class="weather-day">
+        <span class="weather-emoji">${emoji}</span>
+        <div style="font-size:.72rem;color:var(--moss);margin-bottom:.1rem">${dayName}</div>
+        <div class="weather-temp">${maxT}°/${minT}°</div>
+        ${precip > 0 ? `<div class="weather-precip">💧${precip}mm</div>` : ''}
+      </div>`;
+    });
+    el.innerHTML = `<div class="weather-row">${days.join('')}</div>`;
+  } catch { /* silently skip */ }
+}
+
+// ── Filters ───────────────────────────────────────────────────────────────────
+function applyFilters() {
+  const minKm = parseFloat(document.getElementById('filterMinKm')?.value) || 0;
+  const maxKm = parseFloat(document.getElementById('filterMaxKm')?.value) || Infinity;
+  const hideCompleted = document.getElementById('filterHideCompleted')?.checked || false;
+  const grid = document.getElementById('resultsGrid');
+  if (!grid) return;
+  let visible = 0;
+  currentTrails.forEach((t, i) => {
+    const card = document.getElementById(`card-${i}`);
+    if (!card) return;
+    const km = parseFloat(t.trailDist) || 0;
+    const done = doneTrails.has(t.name);
+    const show = (!minKm || km >= minKm) && (!isFinite(maxKm) || km <= maxKm) && !(hideCompleted && done);
+    card.style.display = show ? '' : 'none';
+    if (show) visible++;
+  });
+  const countEl = document.querySelector('.results-count');
+  if (countEl) countEl.textContent = `${visible} trail${visible !== 1 ? 's' : ''} found`;
+}
+
+// ── Done button ───────────────────────────────────────────────────────────────
+function saveDoneTrails() {
+  localStorage.setItem('doneTrails', JSON.stringify([...doneTrails]));
+}
+
+function toggleDone(idx) {
+  const t = currentTrails[idx];
+  const btn = document.getElementById(`doneBtn-${idx}`);
+  const card = document.getElementById(`card-${idx}`);
+  if (doneTrails.has(t.name)) {
+    doneTrails.delete(t.name);
+    btn.textContent = '🏅 Done';
+    btn.classList.remove('done-active');
+    if (card) { card.classList.remove('done-trail'); card.style.borderLeftColor = ''; }
+  } else {
+    doneTrails.add(t.name);
+    btn.textContent = '✅ Done';
+    btn.classList.add('done-active');
+    if (card) { card.classList.add('done-trail'); card.style.borderLeftColor = 'var(--moss)'; }
+  }
+  saveDoneTrails();
+  applyFilters();
+}
+
+// ── Reviews ───────────────────────────────────────────────────────────────────
+function setStarRating(idx, n) {
+  reviewRatings[idx] = n;
+  const stars = document.querySelectorAll(`#stars-${idx} span`);
+  stars.forEach((s, i) => s.classList.toggle('active', i < n));
+}
+
+async function loadReviews(idx) {
+  const t = currentTrails[idx];
+  const listEl = document.getElementById(`review-list-${idx}`);
+  try {
+    const r = await fetch('/api/reviews', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({trail_id: String(t.id)})
+    });
+    const d = await r.json();
+    // Update avg badge on card
+    const avgEl = document.getElementById(`avg-${idx}`);
+    if (avgEl && d.avg) avgEl.textContent = `⭐ ${d.avg} (${d.count})`;
+    if (!d.reviews.length) {
+      listEl.innerHTML = '<p style="font-size:.85rem;color:var(--moss)">No reviews yet. Be the first!</p>';
+      return;
+    }
+    listEl.innerHTML = d.reviews.map(rv => `
+      <div class="review-item">
+        <div class="review-stars">${'★'.repeat(rv.rating)}${'☆'.repeat(5 - rv.rating)}</div>
+        ${rv.comment ? `<div class="review-comment">${rv.comment.replace(/</g,'&lt;')}</div>` : ''}
+        <div class="review-date">${rv.created_at ? rv.created_at.split(' ')[0] : ''}</div>
+      </div>`).join('');
+  } catch {
+    listEl.innerHTML = '<p style="font-size:.82rem;color:#c33">Could not load reviews.</p>';
+  }
+}
+
+async function toggleReviews(idx) {
+  const panel = document.getElementById(`review-${idx}`);
+  panel.classList.toggle('open');
+  if (panel.classList.contains('open') && !reviewsLoaded[idx]) {
+    reviewsLoaded[idx] = true;
+    await loadReviews(idx);
+  }
+}
+
+async function submitReview(idx) {
+  const t = currentTrails[idx];
+  const rating = reviewRatings[idx] || 0;
+  const comment = document.getElementById(`reviewComment-${idx}`).value.trim();
+  const statusEl = document.getElementById(`reviewStatus-${idx}`);
+  if (!rating) { statusEl.textContent = 'Please select a star rating.'; statusEl.style.color = '#c33'; return; }
+  statusEl.textContent = 'Submitting…'; statusEl.style.color = 'var(--moss)';
+  try {
+    const r = await fetch('/api/review-add', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({trail_id: String(t.id), trail_name: t.name, rating, comment})
+    });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    statusEl.textContent = '✅ Thanks!';
+    document.getElementById(`reviewComment-${idx}`).value = '';
+    reviewRatings[idx] = 0;
+    document.querySelectorAll(`#stars-${idx} span`).forEach(s => s.classList.remove('active'));
+    reviewsLoaded[idx] = false;
+    await loadReviews(idx);
+  } catch(e) {
+    statusEl.textContent = '⚠️ ' + e.message; statusEl.style.color = '#c33';
+  }
+}
+
+// ── Saved searches ────────────────────────────────────────────────────────────
+function getSavedSearches() {
+  return JSON.parse(localStorage.getItem('savedSearches') || '[]');
+}
+
+function saveCurrentSearch() {
+  const location = document.getElementById('location').value.trim();
+  if (!location) { alert('Enter a location first.'); return; }
+  const activity = document.getElementById('activity').value;
+  const walkToStop = parseInt(document.getElementById('walkToStop').value);
+  const walkFromStop = parseInt(document.getElementById('walkFromStop').value);
+  const ptModes = getChecked('ptMode');
+  const trailSubtypes = getChecked('trailType');
+  const entry = {location, activity, walkToStop, walkFromStop, ptModes, trailSubtypes, coords: selectedCoords || null};
+  const searches = getSavedSearches().filter(s => s.location !== location);
+  searches.unshift(entry);
+  localStorage.setItem('savedSearches', JSON.stringify(searches.slice(0, 5)));
+  renderSavedSearchChips();
+}
+
+function renderSavedSearchChips() {
+  const row = document.getElementById('savedSearchesRow');
+  if (!row) return;
+  const searches = getSavedSearches();
+  if (!searches.length) { row.innerHTML = ''; return; }
+  row.innerHTML = searches.map((s, i) =>
+    `<div class="saved-chip" onclick="restoreSearch(${i})">
+      <span style="overflow:hidden;text-overflow:ellipsis">${s.location} · ${s.activity}</span>
+      <span class="del-saved" onclick="event.stopPropagation();deleteSavedSearch(${i})">✕</span>
+    </div>`
+  ).join('');
+}
+
+function restoreSearch(i) {
+  const s = getSavedSearches()[i];
+  if (!s) return;
+  document.getElementById('location').value = s.location;
+  document.getElementById('activity').value = s.activity;
+  if (s.coords) selectedCoords = s.coords;
+  setSliders(s.activity);
+  updateTrailTypeChips(s.activity);
+  document.getElementById('walkToStop').value = s.walkToStop;
+  document.getElementById('walkFromStop').value = s.walkFromStop;
+  updateSlider('walkToStop', 'walkToStopVal');
+  updateSlider('walkFromStop', 'walkFromStopVal');
+  // restore pt modes
+  document.querySelectorAll('input[name="ptMode"]').forEach(el => {
+    el.checked = s.ptModes.includes(el.value);
+  });
+  // restore trail subtypes
+  document.querySelectorAll('input[name="trailType"]').forEach(el => {
+    el.checked = s.trailSubtypes.includes(el.value);
+  });
+  // auto-submit
+  document.getElementById('searchForm').dispatchEvent(new Event('submit'));
+}
+
+function deleteSavedSearch(i) {
+  const searches = getSavedSearches();
+  searches.splice(i, 1);
+  localStorage.setItem('savedSearches', JSON.stringify(searches));
+  renderSavedSearchChips();
+}
+
+// ── GPX pack download ─────────────────────────────────────────────────────────
+async function downloadAllGPX() {
+  if (typeof JSZip === 'undefined') { alert('JSZip not loaded.'); return; }
+  const zip = new JSZip();
+  const visible = currentTrails.filter((t, i) => {
+    const card = document.getElementById(`card-${i}`);
+    return !card || card.style.display !== 'none';
+  });
+  if (!visible.length) { alert('No visible trails to download.'); return; }
+  visible.forEach(t => {
+    const safeName = t.name.replace(/[^a-z0-9]/gi, '_');
+    const gpx = `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="TrailbyRail" xmlns="http://www.topografix.com/GPX/1/1">\n  <metadata><name>${t.name}</name></metadata>\n  <wpt lat="${t.lat}" lon="${t.lon}"><name>${t.name}</name></wpt>\n</gpx>`;
+    zip.file(`${safeName}.gpx`, gpx);
+  });
+  const blob = await zip.generateAsync({type: 'blob'});
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(blob),
+    download: 'trailbyrail-pack.zip'
+  });
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+// ── Share curated list ────────────────────────────────────────────────────────
+function buildShareHash() {
+  const params = {
+    location: document.getElementById('location').value.trim(),
+    activity: document.getElementById('activity').value,
+    walkToStop: document.getElementById('walkToStop').value,
+    walkFromStop: document.getElementById('walkFromStop').value,
+    ptModes: getChecked('ptMode').join(','),
+    trailSubtypes: getChecked('trailType').join(','),
+  };
+  return '#share=' + encodeURIComponent(JSON.stringify(params));
+}
+
+async function shareList() {
+  const hash = buildShareHash();
+  const url = location.origin + location.pathname + hash;
+  const btn = document.getElementById('shareListBtn');
+  try {
+    await navigator.clipboard.writeText(url);
+    const orig = btn.textContent;
+    btn.textContent = '✅ Copied!';
+    setTimeout(() => { btn.textContent = orig; }, 2000);
+  } catch {
+    prompt('Copy this URL to share your trail list:', url);
+  }
+  history.replaceState(null, '', hash);
+}
+
+function checkHashAndAutoSearch() {
+  const hash = location.hash;
+  if (!hash.startsWith('#share=')) return;
+  try {
+    const params = JSON.parse(decodeURIComponent(hash.slice(7)));
+    if (!params.location) return;
+    document.getElementById('location').value = params.location;
+    document.getElementById('activity').value = params.activity || 'hiking';
+    setSliders(params.activity || 'hiking');
+    updateTrailTypeChips(params.activity || 'hiking');
+    if (params.walkToStop) { document.getElementById('walkToStop').value = params.walkToStop; updateSlider('walkToStop', 'walkToStopVal'); }
+    if (params.walkFromStop) { document.getElementById('walkFromStop').value = params.walkFromStop; updateSlider('walkFromStop', 'walkFromStopVal'); }
+    if (params.ptModes) {
+      const modes = params.ptModes.split(',');
+      document.querySelectorAll('input[name="ptMode"]').forEach(el => { el.checked = modes.includes(el.value); });
+    }
+    if (params.trailSubtypes) {
+      const subs = params.trailSubtypes.split(',');
+      document.querySelectorAll('input[name="trailType"]').forEach(el => { el.checked = subs.includes(el.value); });
+    }
+    document.getElementById('searchForm').dispatchEvent(new Event('submit'));
+  } catch { /* ignore malformed hash */ }
+}
 </script>
 </body>
 </html>
