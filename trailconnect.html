@@ -319,11 +319,20 @@ details.api-settings[open] summary{margin-bottom:.85rem}
 
       <div class="slider-group" id="walkToStopGroup">
         <div class="slider-header">
-          <label id="walkToStopLabel">🔍 Search radius from home</label>
-          <span class="slider-val" id="walkToStopVal">5km</span>
+          <label id="walkToStopLabel">🚶 Walk from home to stop</label>
+          <span class="slider-val" id="walkToStopVal">2km</span>
         </div>
-        <input type="range" id="walkToStop" min="500" max="100000" step="500" value="5000">
-        <div class="slider-ticks" id="walkToStopTicks"><span>500m</span><span>25km</span><span>50km</span><span>75km</span><span>100km</span></div>
+        <input type="range" id="walkToStop" min="500" max="20000" step="500" value="2000">
+        <div class="slider-ticks" id="walkToStopTicks"><span>500m</span><span>5km</span><span>10km</span><span>15km</span><span>20km</span></div>
+      </div>
+
+      <div class="slider-group" id="ptJourneyGroup">
+        <div class="slider-header">
+          <label id="ptJourneyLabel">🚂 PT journey distance</label>
+          <span class="slider-val" id="ptJourneyVal">0km</span>
+        </div>
+        <input type="range" id="ptJourney" min="0" max="300000" step="5000" value="0">
+        <div class="slider-ticks"><span>0km</span><span>75km</span><span>150km</span><span>225km</span><span>300km</span></div>
       </div>
 
       <div class="slider-group">
@@ -381,6 +390,7 @@ details.api-settings[open] summary{margin-bottom:.85rem}
 let homeLat, homeLon, currentTrails = [], selectedCoords = null;
 let searchMode = 'home'; // 'home' | 'destination'
 let destLat, destLon, selectedDestCoords = null;
+let lastPtJourney = 0; // metres — stored so renderCard can use it
 let doneTrails = new Set(JSON.parse(localStorage.getItem('doneTrails') || '[]'));
 let reviewsLoaded = {};
 let reviewRatings = {};
@@ -586,8 +596,9 @@ function setSearchMode(mode) {
   document.getElementById('modeNearHome').classList.toggle('active', mode === 'home');
   document.getElementById('modeDestination').classList.toggle('active', mode === 'destination');
   document.getElementById('destinationGroup').style.display = mode === 'destination' ? '' : 'none';
+  document.getElementById('ptJourneyGroup').style.display   = mode === 'destination' ? 'none' : '';
 
-  // Train checkbox: only meaningful in destination mode
+  // Train checkbox: only meaningful in destination mode (or when ptJourney > 0)
   const trainChip = document.querySelector('input[name="ptMode"][value="train"]')?.closest('.chip');
   if (trainChip) {
     trainChip.style.display = mode === 'destination' ? '' : 'none';
@@ -736,10 +747,21 @@ document.getElementById('activity').addEventListener('change', function() {
 });
 document.getElementById('walkToStop').addEventListener('input',   () => updateSlider('walkToStop',   'walkToStopVal'));
 document.getElementById('walkFromStop').addEventListener('input', () => updateSlider('walkFromStop', 'walkFromStopVal'));
+document.getElementById('ptJourney').addEventListener('input', () => {
+  updateSlider('ptJourney', 'ptJourneyVal');
+  // Show/hide train checkbox based on whether a PT journey is set
+  const trainChip = document.querySelector('input[name="ptMode"][value="train"]')?.closest('.chip');
+  if (trainChip && searchMode !== 'destination') {
+    const hasPtJourney = parseInt(document.getElementById('ptJourney').value) > 0;
+    trainChip.style.display = hasPtJourney ? '' : 'none';
+    trainChip.querySelector('input').checked = hasPtJourney;
+  }
+});
 setSliders(document.getElementById('activity').value);
 updateTrailTypeChips(document.getElementById('activity').value);
 makeSliderEditable('walkToStop',   'walkToStopVal');
 makeSliderEditable('walkFromStop', 'walkFromStopVal');
+makeSliderEditable('ptJourney',    'ptJourneyVal');
 
 function dist(lat1, lon1, lat2, lon2) {
   const R = 6371000, dl = (lat2-lat1)*Math.PI/180, do_ = (lon2-lon1)*Math.PI/180;
@@ -992,8 +1014,9 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
 
   const location = document.getElementById('location').value.trim();
   const activity = document.getElementById('activity').value;
-  const walkToStop = parseInt(document.getElementById('walkToStop').value);
+  const walkToStop   = parseInt(document.getElementById('walkToStop').value);
   const walkFromStop = parseInt(document.getElementById('walkFromStop').value);
+  const ptJourney    = parseInt(document.getElementById('ptJourney').value) || 0;
   const ptModes = getChecked('ptMode');
   const trailSubtypes = getChecked('trailType');
   if (!ptModes.length) { alert('Select at least one transport mode.'); return; }
@@ -1029,34 +1052,41 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
 
   const destLabel = searchMode === 'destination' ? destInput.value.trim() : '';
   const isDestMode = searchMode === 'destination';
-  const combinedRadius = isDestMode ? walkFromStop : walkToStop + walkFromStop;
+  const combinedRadius = isDestMode ? walkFromStop : walkToStop + ptJourney + walkFromStop;
 
   resultsDiv.innerHTML = `<div class="loading">
     <div class="loading-spinner">🔄</div>
     <div class="loading-msg">${isDestMode ? `Finding trails near <strong>${destLabel}</strong>…` : 'Finding trails reachable by public transport…'}</div>
-    <div class="loading-sub">${isDestMode ? `≤${fmt(walkToStop)} to departure stop · ≤${fmt(walkFromStop)} from arrival stop to trail` : `Trails within ${fmt(combinedRadius)} of home · bus/tram stop within ${fmt(walkFromStop)} of trail`}</div>
+    <div class="loading-sub">${isDestMode
+      ? `≤${fmt(walkToStop)} to departure stop · ≤${fmt(walkFromStop)} from arrival stop to trail`
+      : ptJourney > 0
+        ? `≤${fmt(walkToStop)} to station · 🚂 ${fmt(ptJourney)} journey · ≤${fmt(walkFromStop)} to trail`
+        : `Trails within ${fmt(combinedRadius)} of home · bus/tram stop within ${fmt(walkFromStop)} of trail`
+    }</div>
   </div>`;
 
   try {
-    // Near-home: fetch stops across the FULL search area, not just near the front door.
-    // Bus networks cover the whole region — we don't need the boarding stop to be
-    // near home, only the alighting stop to be near the trail.
+    lastPtJourney = ptJourney; // store for renderCard
+
     const stopRadius = isDestMode ? walkFromStop : combinedRadius;
 
-    // In destination mode also fetch home stops (departure leg) in parallel
+    // Fetch home stops when: destination mode OR near-home with a PT journey set
+    const needHomeStops = isDestMode || (!isDestMode && ptJourney > 0);
     const fetchList = [
       fetchStops(searchLat, searchLon, stopRadius, ptModes),
       fetchTrails(searchLat, searchLon, combinedRadius, trailSubtypes),
       fetchOutdooractive(searchLat, searchLon, combinedRadius, trailSubtypes),
       fetchCustomRoutes(searchLat, searchLon, combinedRadius),
-      isDestMode && homeLat ? fetchStops(homeLat, homeLon, walkToStop, ptModes) : Promise.resolve([]),
+      needHomeStops && homeLat ? fetchStops(homeLat, homeLon, walkToStop, ptModes) : Promise.resolve([]),
     ];
     const [stops, osmTrails, odaTrails, customTrails, homeStops] = await Promise.all(fetchList);
 
-    // Best departure stop (nearest to home)
-    const departureStop = homeStops.length
-      ? homeStops.sort((a, b) => a.distFromHome - b.distFromHome)[0]
-      : null;
+    // Best departure stop: nearest train station to home (for pt-journey mode)
+    // or nearest stop (for destination mode)
+    const homeStopsSorted = homeStops.sort((a, b) => a.distFromHome - b.distFromHome);
+    const departureStop = ptJourney > 0
+      ? (homeStopsSorted.find(s => s.icon === '🚂') || homeStopsSorted[0] || null)
+      : (homeStopsSorted[0] || null);
 
     const osmNames = new Set(osmTrails.map(t => t.name.toLowerCase()));
     const trails = [
@@ -1073,11 +1103,15 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
         .filter(s => s.distToTrail <= walkFromStop);
 
       if (!isDestMode) {
-        // Near-home mode: trains are for long-distance journeys, not local trips.
-        // Only bus / tram / metro stops make sense here — they bridge the gap
-        // between your home and a nearby trail. If you need a train, use
-        // By Destination instead.
-        connecting = connecting.filter(s => s.icon !== '🚂');
+        if (ptJourney > 0) {
+          // PT journey set: user is taking a train. Only show train stations
+          // as arrival stops so the journey makes sense.
+          const trainOnly = connecting.filter(s => s.icon === '🚂');
+          if (trainOnly.length) connecting = trainOnly;
+        } else {
+          // No PT journey: local bus/tram/metro only — trains excluded.
+          connecting = connecting.filter(s => s.icon !== '🚂');
+        }
       }
 
       connecting = connecting.sort((a, b) => a.distToTrail - b.distToTrail).slice(0, 4);
@@ -1279,7 +1313,40 @@ function renderCard(trail, idx) {
         <div class="jlabel">Trailhead</div>
         ${trail.trailDist ? `<div class="jsub">${trail.trailDist}km</div>` : ''}
       </div>`;
-      })() : `
+      })() : (() => {
+        const dep = lastPtJourney > 0 ? trail.departureStop : null;
+        return dep ? `
+      <div class="jnode">
+        <div class="jicon jicon-home">🏠</div>
+        <div class="jlabel">Home</div>
+      </div>
+      <div class="jleg">
+        <div class="jline"></div>
+        <div class="jdist">🚶 ${fmt(dep.distFromHome)}</div>
+      </div>
+      <div class="jnode">
+        <div class="jicon jicon-stop">${dep.icon}</div>
+        <div class="jlabel">${dep.name}</div>
+        <div class="jsub">${dep.type}</div>
+      </div>
+      <div class="jleg">
+        <div class="jline"></div>
+        <div class="jdist">🚂 ${fmt(lastPtJourney)}</div>
+      </div>
+      <div class="jnode">
+        <div class="jicon jicon-stop">${best.icon}</div>
+        <div class="jlabel">${best.name}</div>
+        <div class="jsub">${best.type}</div>
+      </div>
+      <div class="jleg">
+        <div class="jline"></div>
+        <div class="jdist">${trail.icon} ${fmt(best.distToTrail)}</div>
+      </div>
+      <div class="jnode">
+        <div class="jicon jicon-trail">🏔️</div>
+        <div class="jlabel">Trailhead</div>
+        ${trail.trailDist ? `<div class="jsub">${trail.trailDist}km</div>` : ''}
+      </div>` : `
       <div class="jnode">
         <div class="jicon jicon-home">🏠</div>
         <div class="jlabel">Home</div>
@@ -1301,14 +1368,15 @@ function renderCard(trail, idx) {
         <div class="jicon jicon-trail">🏔️</div>
         <div class="jlabel">Trailhead</div>
         ${trail.trailDist ? `<div class="jsub">${trail.trailDist}km</div>` : ''}
-      </div>`}
+      </div>`;
+      })()}
 
     </div>
 
     <div id="weather-${idx}"></div>
 
     <div class="stops-section">
-      <div class="stops-title">${isDestMode ? '🚂 Alight at' : '🚌'} ${trail.stops.length} nearby stop${trail.stops.length !== 1 ? 's' : ''}</div>
+      <div class="stops-title">${isDestMode || lastPtJourney > 0 ? '🚂 Alight at' : '🚌'} ${trail.stops.length} nearby stop${trail.stops.length !== 1 ? 's' : ''}</div>
       <div class="stop-list">${stopItems}</div>
     </div>
 
