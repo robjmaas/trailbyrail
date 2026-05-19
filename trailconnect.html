@@ -836,23 +836,31 @@ async function wtCall(type, routeType, params) {
 
 // ── Overpass trail + area search ─────────────────────────────────────────────
 
+// Build a bounding box string for Overpass from a centre + radius in metres.
+// bbox queries use spatial indexes and are ~5–10× faster than `around` for relations.
+function toBbox(lat, lon, radiusM) {
+  const r = Math.min(radiusM, 25000);
+  const dLat = r / 111320;
+  const dLon = r / (111320 * Math.cos(lat * Math.PI / 180));
+  return `${(lat - dLat).toFixed(5)},${(lon - dLon).toFixed(5)},${(lat + dLat).toFixed(5)},${(lon + dLon).toFixed(5)}`;
+}
+
 async function fetchTrails(lat, lon, radiusM, subtypes) {
-  const r = Math.min(Math.round(radiusM), 25000);
-  const a = `around:${r},${lat},${lon}`;
+  const bb = toBbox(lat, lon, radiusM);
   const lines = [
-    subtypes.includes('hiking')   && `relation["route"="hiking"]["name"](${a});`,
-    subtypes.includes('running')  && `relation["route"="running"]["name"](${a});`,
-    subtypes.includes('nature')   && `way["leisure"="nature_reserve"]["name"](${a});\n    relation["leisure"="nature_reserve"]["name"](${a});`,
-    subtypes.includes('park')     && `way["boundary"="national_park"]["name"](${a});\n    relation["boundary"="national_park"]["name"](${a});`,
-    subtypes.includes('cycling')  && `relation["route"="bicycle"]["name"](${a});`,
-    subtypes.includes('mtb')      && `relation["route"="mtb"]["name"](${a});`,
-    subtypes.includes('swimming') && `node["leisure"="swimming_area"](${a});\n    node["sport"="swimming"]["leisure"](${a});\n    way["leisure"="swimming_area"](${a});`,
-    subtypes.includes('lido')     && `node["leisure"="swimming_pool"]["access"!="private"](${a});\n    node["natural"="water"]["sport"="swimming"](${a});\n    way["natural"="water"]["sport"="swimming"](${a});`,
-    subtypes.includes('downhill') && `node["leisure"="ski_resort"](${a});\n    way["piste:type"="downhill"](${a});\n    relation["route"="ski"]["piste:type"="downhill"](${a});`,
-    subtypes.includes('nordic')   && `relation["route"="ski"]["piste:type"="nordic"](${a});\n    way["piste:type"="nordic"](${a});`,
+    subtypes.includes('hiking')   && `relation["route"="hiking"]["name"](${bb});`,
+    subtypes.includes('running')  && `relation["route"="running"]["name"](${bb});`,
+    subtypes.includes('nature')   && `way["leisure"="nature_reserve"]["name"](${bb});\n    relation["leisure"="nature_reserve"]["name"](${bb});`,
+    subtypes.includes('park')     && `way["boundary"="national_park"]["name"](${bb});\n    relation["boundary"="national_park"]["name"](${bb});`,
+    subtypes.includes('cycling')  && `relation["route"="bicycle"]["name"](${bb});`,
+    subtypes.includes('mtb')      && `relation["route"="mtb"]["name"](${bb});`,
+    subtypes.includes('swimming') && `node["leisure"="swimming_area"](${bb});\n    node["sport"="swimming"]["leisure"](${bb});\n    way["leisure"="swimming_area"](${bb});`,
+    subtypes.includes('lido')     && `node["leisure"="swimming_pool"]["access"!="private"](${bb});\n    node["natural"="water"]["sport"="swimming"](${bb});\n    way["natural"="water"]["sport"="swimming"](${bb});`,
+    subtypes.includes('downhill') && `node["leisure"="ski_resort"](${bb});\n    way["piste:type"="downhill"](${bb});\n    relation["route"="ski"]["piste:type"="downhill"](${bb});`,
+    subtypes.includes('nordic')   && `relation["route"="ski"]["piste:type"="nordic"](${bb});\n    way["piste:type"="nordic"](${bb});`,
   ].filter(Boolean).join('\n    ');
   if (!lines) return [];
-  const q = `[out:json][timeout:60];(\n    ${lines}\n  );out center tags;`;
+  const q = `[out:json][timeout:30][maxsize:16777216];(\n    ${lines}\n  );out center tags 120;`;
   const data = await overpass(q);
   const seen = new Set();
   return data.elements.map(el => {
@@ -1019,7 +1027,16 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
 
   } catch(err) {
     btn.disabled = false;
-    resultsDiv.innerHTML = `<div class="error">⚠️ ${err.message}</div>`;
+    const is504 = err.message.includes('504') || err.message.includes('502');
+    resultsDiv.innerHTML = is504
+      ? `<div class="no-results">
+          <div class="no-results-icon">⏱️</div>
+          <h3>Search timed out</h3>
+          <p>The map database is busy or the search area is too large.<br>
+             Try <strong>reducing the radius</strong>, selecting fewer trail types, or search again in a moment.</p>
+          <button class="btn-find" style="margin-top:1rem;padding:.75rem 2rem" onclick="document.getElementById('findBtn').click()">🔄 Try again</button>
+        </div>`
+      : `<div class="error">⚠️ ${err.message}</div>`;
   }
 });
 
