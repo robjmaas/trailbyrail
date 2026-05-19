@@ -1009,6 +1009,21 @@ async function downloadGPX(idx) {
   }
 }
 
+// Group stops into grid cells of ~gridKm size. Returns centroid per cell.
+function clusterGrid(stops, gridKm) {
+  const cells = {};
+  for (const s of stops) {
+    const row = Math.round(s.lat * 111 / gridKm);
+    const col = Math.round(s.lon * 111 * Math.cos(s.lat * Math.PI / 180) / gridKm);
+    const key = `${row}:${col}`;
+    if (!cells[key]) cells[key] = { latSum: 0, lonSum: 0, count: 0, distFromHome: s.distFromHome };
+    cells[key].latSum += s.lat; cells[key].lonSum += s.lon; cells[key].count++;
+  }
+  return Object.values(cells).map(c => ({
+    lat: c.latSum / c.count, lon: c.lonSum / c.count, distFromHome: c.distFromHome,
+  }));
+}
+
 document.getElementById('searchForm').addEventListener('submit', async e => {
   e.preventDefault();
 
@@ -1068,18 +1083,53 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
   try {
     lastPtJourney = ptJourney; // store for renderCard
 
-    const stopRadius = isDestMode ? walkFromStop : combinedRadius;
+    let stops, osmTrails, odaTrails, customTrails, homeStops;
 
-    // Fetch home stops when: destination mode OR near-home with a PT journey set
-    const needHomeStops = isDestMode || (!isDestMode && ptJourney > 0);
-    const fetchList = [
-      fetchStops(searchLat, searchLon, stopRadius, ptModes),
-      fetchTrails(searchLat, searchLon, combinedRadius, trailSubtypes),
-      fetchOutdooractive(searchLat, searchLon, combinedRadius, trailSubtypes),
-      fetchCustomRoutes(searchLat, searchLon, combinedRadius),
-      needHomeStops && homeLat ? fetchStops(homeLat, homeLon, walkToStop, ptModes) : Promise.resolve([]),
-    ];
-    const [stops, osmTrails, odaTrails, customTrails, homeStops] = await Promise.all(fetchList);
+    if (!isDestMode && ptJourney > 0) {
+      // ── Station-first search ───────────────────────────────────────────────
+      // 1. Find all train stations within PT journey reach of home
+      const maxReach = Math.min(walkToStop + ptJourney, 250000);
+      const allTrainStops = await fetchStops(homeLat, homeLon, maxReach, ['train']);
+
+      // Departure stops: close to home
+      homeStops = allTrainStops.filter(s => s.distFromHome <= walkToStop * 1.5);
+
+      // Arrival zones: remote stations clustered into ~40km grid cells, farthest first
+      const remoteStops = allTrainStops.filter(s => s.distFromHome > walkToStop * 2);
+      const zones = clusterGrid(remoteStops, 40)
+        .sort((a, b) => b.distFromHome - a.distFromHome)
+        .slice(0, 3);
+
+      osmTrails = []; odaTrails = []; stops = []; customTrails = [];
+      const seenT = new Set(), seenS = new Set();
+
+      // 2. For each zone, search for trails + stops (backend lock serialises Overpass)
+      for (const zone of zones) {
+        const [zOsm, zOda, zStops] = await Promise.all([
+          fetchTrails(zone.lat, zone.lon, walkFromStop, trailSubtypes),
+          fetchOutdooractive(zone.lat, zone.lon, walkFromStop, trailSubtypes),
+          fetchStops(zone.lat, zone.lon, walkFromStop + 5000, ptModes),
+        ]);
+        for (const t of zOsm) { if (!seenT.has(t.id)) { seenT.add(t.id); osmTrails.push(t); } }
+        for (const t of zOda) { if (!seenT.has(t.id)) { seenT.add(t.id); odaTrails.push(t); } }
+        for (const s of zStops) { if (!seenS.has(s.id)) { seenS.add(s.id); stops.push(s); } }
+      }
+      customTrails = await fetchCustomRoutes(homeLat, homeLon, 50000);
+
+    } else {
+      // ── Standard single-centre search ────────────────────────────────────
+      const stopRadius = isDestMode ? walkFromStop : combinedRadius;
+      const needHomeStops = isDestMode;
+      const fetchList = [
+        fetchStops(searchLat, searchLon, stopRadius, ptModes),
+        fetchTrails(searchLat, searchLon, combinedRadius, trailSubtypes),
+        fetchOutdooractive(searchLat, searchLon, combinedRadius, trailSubtypes),
+        fetchCustomRoutes(searchLat, searchLon, combinedRadius),
+        needHomeStops && homeLat ? fetchStops(homeLat, homeLon, walkToStop, ptModes) : Promise.resolve([]),
+      ];
+      [stops, osmTrails, odaTrails, customTrails, homeStops] = await Promise.all(fetchList);
+      if (!homeStops) homeStops = [];
+    }
 
     // Best departure stop: nearest train station to home (for pt-journey mode)
     // or nearest stop (for destination mode)
@@ -1103,15 +1153,11 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
         .filter(s => s.distToTrail <= walkFromStop);
 
       if (!isDestMode) {
-        if (ptJourney > 0) {
-          // PT journey set: user is taking a train. Only show train stations
-          // as arrival stops so the journey makes sense.
-          const trainOnly = connecting.filter(s => s.icon === '🚂');
-          if (trainOnly.length) connecting = trainOnly;
-        } else {
-          // No PT journey: local bus/tram/metro only — trains excluded.
+        if (ptJourney === 0) {
+          // Local mode (no train journey): exclude train stations — too far to walk to/from.
           connecting = connecting.filter(s => s.icon !== '🚂');
         }
+        // ptJourney > 0: allow all modes — train station = alight, bus/tram = last-mile connection.
       }
 
       connecting = connecting.sort((a, b) => a.distToTrail - b.distToTrail).slice(0, 4);
@@ -1148,7 +1194,7 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
     resultsDiv.innerHTML = `
       <div class="results-meta">
         <span class="results-count">${results.length} trail${results.length !== 1 ? 's' : ''} found</span>
-        <span class="results-hint">${searchMode === 'destination' ? `📍 ${destLabel} · ≤${fmt(walkFromStop)} stop to trail` : `Within ${fmt(combinedRadius)} of home · bus/tram ≤${fmt(walkFromStop)} from trail`}</span>
+        <span class="results-hint">${isDestMode ? `📍 ${destLabel} · ≤${fmt(walkFromStop)} stop to trail` : ptJourney > 0 ? `🚂 Up to ${fmt(ptJourney)} by train · ≤${fmt(walkFromStop)} from station to trail` : `Within ${fmt(combinedRadius)} of home · ≤${fmt(walkFromStop)} from trail`}</span>
         <div style="display:flex;gap:.45rem;flex-wrap:wrap">
           <button class="meta-btn" onclick="downloadAllGPX()">📦 Download all GPX</button>
           <button class="meta-btn" id="shareListBtn" onclick="shareList()">🔗 Share list</button>
