@@ -1009,41 +1009,15 @@ async function downloadGPX(idx) {
   }
 }
 
-// For each grid cell pick the ONE stop closest to the cell centroid (actual real location).
-function pickRepresentatives(stops, gridKm, maxN) {
-  const cells = {};
-  for (const s of stops) {
-    const row = Math.round(s.lat * 111 / gridKm);
-    const col = Math.round(s.lon * 111 * Math.cos(s.lat * Math.PI / 180) / gridKm);
-    const key = `${row}:${col}`;
-    if (!cells[key]) cells[key] = [];
-    cells[key].push(s);
-  }
-  return Object.values(cells).map(group => {
-    const clat = group.reduce((a, s) => a + s.lat, 0) / group.length;
-    const clon = group.reduce((a, s) => a + s.lon, 0) / group.length;
-    return group.reduce((best, s) =>
-      dist(clat, clon, s.lat, s.lon) < dist(clat, clon, best.lat, best.lon) ? s : best
-    );
-  }).sort((a, b) => b.distFromHome - a.distFromHome).slice(0, maxN);
-}
-
-// Lightweight bbox scan of train station nodes (bbox is 5-10x faster than around: for large radii).
-async function fetchTrainStationNodes(lat, lon, radiusM) {
-  const r = Math.min(radiusM, 300000);
-  const dLat = r / 111320;
-  const dLon = r / (111320 * Math.cos(lat * Math.PI / 180));
-  const bb = `${(lat - dLat).toFixed(4)},${(lon - dLon).toFixed(4)},${(lat + dLat).toFixed(4)},${(lon + dLon).toFixed(4)}`;
-  // qt = quickcheck + topology-sort (faster delivery); single tag filter = minimal data
-  const q = `[out:json][timeout:30][maxsize:8388608];\nnode["railway"="station"](${bb});\nout qt;`;
-  const data = await overpass(q);
-  return data.elements.filter(e => e.lat && e.lon).map(e => ({
-    id: e.id, lat: e.lat, lon: e.lon,
-    name: e.tags?.name || 'Station',
-    type: 'Train station', icon: '🚂',
-    lines: e.tags?.route_ref || '',
-    distFromHome: dist(lat, lon, e.lat, e.lon),
-  }));
+// Generate N evenly-spaced points around (lat,lon) at distM metres, starting at startDeg.
+function generateScatterPoints(lat, lon, distM, n, startDeg = 36) {
+  return Array.from({length: n}, (_, i) => {
+    const rad = (startDeg + i * 360 / n) * Math.PI / 180;
+    return {
+      lat: lat + (distM / 111320) * Math.cos(rad),
+      lon: lon + (distM / (111320 * Math.cos(lat * Math.PI / 180))) * Math.sin(rad),
+    };
+  });
 }
 
 document.getElementById('searchForm').addEventListener('submit', async e => {
@@ -1108,40 +1082,33 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
     let stops, osmTrails, odaTrails, customTrails, homeStops;
 
     if (!isDestMode && ptJourney > 0) {
-      // ── Station-first search ───────────────────────────────────────────────
-      // 1. Lightweight bbox scan: find train station NODES within PT journey reach
-      const maxReach = Math.min(walkToStop + ptJourney, 250000);
-      let allTrainStops = [];
-      try {
-        allTrainStops = await fetchTrainStationNodes(homeLat, homeLon, maxReach);
-      } catch(e) {
-        console.warn('[TrailbyRail] station scan failed, retrying with 100km:', e.message);
-        try { allTrainStops = await fetchTrainStationNodes(homeLat, homeLon, 100000); } catch {}
-      }
-      console.log('[TrailbyRail] train stations found:', allTrainStops.length, 'within', (maxReach/1000).toFixed(0)+'km');
+      // ── Scatter search: 5 points around home at ~70% of PT journey distance ──
+      // No large Overpass scan needed. Each point uses fast small-radius queries.
+      // Only trails with a train station within walkFromStop are kept in results.
 
-      // Departure stops: stations close to home
-      homeStops = allTrainStops.filter(s => s.distFromHome <= walkToStop * 1.5);
+      // Home departure stops (train only)
+      homeStops = await fetchStops(homeLat, homeLon, walkToStop, ['train']);
 
-      // Arrival candidates: remote stations, pick 1 real station per 30km cell (max 5 zones)
-      const remoteStops = allTrainStops.filter(s => s.distFromHome > walkToStop * 2);
-      const repStations = pickRepresentatives(remoteStops, 30, 5);
-      console.log('[TrailbyRail] representative arrival stations:', repStations.map(s => `${s.name} (${(s.distFromHome/1000).toFixed(0)}km)`));
+      const searchDist  = Math.min(ptJourney, 200000) * 0.7;
+      const trailRadius = Math.max(walkFromStop, 15000);        // at least 15km
+      const stopRadius  = Math.max(walkFromStop + 10000, 20000);// at least 20km
+      const scatterPts  = generateScatterPoints(homeLat, homeLon, searchDist, 5);
+
+      console.log('[TrailbyRail] scatter at', (searchDist/1000).toFixed(0)+'km,',
+        scatterPts.map(p => `(${p.lat.toFixed(2)},${p.lon.toFixed(2)})`).join(' '));
+
+      const scatterResults = await Promise.all(scatterPts.map(pt => Promise.all([
+        fetchTrails(pt.lat, pt.lon, trailRadius, trailSubtypes),
+        fetchOutdooractive(pt.lat, pt.lon, trailRadius, trailSubtypes),
+        fetchStops(pt.lat, pt.lon, stopRadius, ptModes),
+      ])));
 
       osmTrails = []; odaTrails = []; stops = []; customTrails = [];
       const seenT = new Set(), seenS = new Set();
-
-      // 2. Parallel trail+stop search around each real station location
-      const zoneResults = await Promise.all(repStations.map(station => Promise.all([
-        fetchTrails(station.lat, station.lon, walkFromStop, trailSubtypes),
-        fetchOutdooractive(station.lat, station.lon, walkFromStop, trailSubtypes),
-        fetchStops(station.lat, station.lon, walkFromStop + 5000, ptModes),
-      ])));
-
-      for (const [zOsm, zOda, zStops] of zoneResults) {
-        for (const t of zOsm) { if (!seenT.has(t.id)) { seenT.add(t.id); osmTrails.push(t); } }
-        for (const t of zOda) { if (!seenT.has(t.id)) { seenT.add(t.id); odaTrails.push(t); } }
-        for (const s of zStops) { if (!seenS.has(s.id)) { seenS.add(s.id); stops.push(s); } }
+      for (const [sOsm, sOda, sStops] of scatterResults) {
+        for (const t of sOsm) { if (!seenT.has(t.id)) { seenT.add(t.id); osmTrails.push(t); } }
+        for (const t of sOda) { if (!seenT.has(t.id)) { seenT.add(t.id); odaTrails.push(t); } }
+        for (const s of sStops) { if (!seenS.has(s.id)) { seenS.add(s.id); stops.push(s); } }
       }
       customTrails = await fetchCustomRoutes(homeLat, homeLon, 50000);
 
@@ -1183,10 +1150,19 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
 
       if (!isDestMode) {
         if (ptJourney === 0) {
-          // Local mode (no train journey): exclude train stations — too far to walk to/from.
+          // Local mode: no trains (too far to walk)
           connecting = connecting.filter(s => s.icon !== '🚂');
+        } else {
+          // PT journey mode: require at least one train station, then sort trains first
+          const hasTrain = connecting.some(s => s.icon === '🚂');
+          if (!hasTrain) { connecting = []; }
+          else {
+            connecting = connecting.sort((a, b) => {
+              const at = a.icon === '🚂' ? 0 : 1, bt = b.icon === '🚂' ? 0 : 1;
+              return at !== bt ? at - bt : a.distToTrail - b.distToTrail;
+            });
+          }
         }
-        // ptJourney > 0: allow all modes — train station = alight, bus/tram = last-mile connection.
       }
 
       connecting = connecting.sort((a, b) => a.distToTrail - b.distToTrail).slice(0, 4);
