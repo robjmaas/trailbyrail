@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import os, sqlite3, math, json
+import os, sqlite3, math, json, threading, time
 import xml.etree.ElementTree as ET
 import requests
 from flask import Flask, request, jsonify, send_from_directory, Response, redirect
@@ -319,15 +319,27 @@ OVERPASS_ENDPOINTS = [
     'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
 ]
 
+# Serialize Overpass calls so two parallel requests from the same Railway IP
+# don't both hit the rate limit simultaneously.
+_overpass_lock = threading.Lock()
+_overpass_last_call = [0.0]   # list so the closure can mutate it
+_OVERPASS_MIN_GAP = 0.7       # seconds between outbound requests
+
 @app.route('/api/overpass', methods=['POST'])
 def api_overpass():
-    import time
     query = request.json.get('query', '')
+    # Enforce minimum gap between outbound Overpass requests
+    with _overpass_lock:
+        wait = _OVERPASS_MIN_GAP - (time.time() - _overpass_last_call[0])
+        if wait > 0:
+            time.sleep(wait)
+        _overpass_last_call[0] = time.time()
+
     last_err = None
     for i, endpoint in enumerate(OVERPASS_ENDPOINTS):
         try:
             if i > 0:
-                time.sleep(1.5)   # brief pause before trying mirror
+                time.sleep(1.0)   # brief pause before trying next mirror
             r = requests.post(
                 endpoint,
                 data={'data': query},
