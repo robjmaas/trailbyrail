@@ -317,7 +317,7 @@ details.api-settings[open] summary{margin-bottom:.85rem}
 
       <div class="slider-group" id="walkToStopGroup">
         <div class="slider-header">
-          <label id="walkToStopLabel">🚶 Walk from home to stop</label>
+          <label id="walkToStopLabel">🔍 Search radius from home</label>
           <span class="slider-val" id="walkToStopVal">5km</span>
         </div>
         <input type="range" id="walkToStop" min="500" max="10000" step="500" value="5000">
@@ -601,7 +601,7 @@ function setSearchMode(mode) {
     document.getElementById('walkToStopLabel').textContent   = cfg.toStopLabel.replace('home', 'departure stop');
     document.getElementById('walkFromStopLabel').textContent = '🏔️ Walk from arrival stop to trail';
   } else {
-    document.getElementById('walkToStopLabel').textContent   = cfg.toStopLabel;
+    document.getElementById('walkToStopLabel').textContent   = '🔍 Search radius from home';
     document.getElementById('walkFromStopLabel').textContent = cfg.fromStopLabel;
   }
 }
@@ -991,13 +991,16 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
   resultsDiv.innerHTML = `<div class="loading">
     <div class="loading-spinner">🔄</div>
     <div class="loading-msg">${searchMode === 'destination' ? `Finding trails near <strong>${destLabel}</strong>…` : 'Finding trails reachable by public transport…'}</div>
-    <div class="loading-sub">${searchMode === 'destination' ? `≤${fmt(walkToStop)} to departure stop · ≤${fmt(walkFromStop)} from arrival stop to trail` : `Stops within ${fmt(walkToStop)} of home · trails within ${fmt(walkFromStop)} of a stop`}</div>
+    <div class="loading-sub">${searchMode === 'destination' ? `≤${fmt(walkToStop)} to departure stop · ≤${fmt(walkFromStop)} from arrival stop to trail` : `Trails within ${fmt(combinedRadius)} of home · bus/tram stop within ${fmt(walkFromStop)} of trail`}</div>
   </div>`;
 
   try {
     const isDestMode = searchMode === 'destination';
     const combinedRadius = isDestMode ? walkFromStop : walkToStop + walkFromStop;
-    const stopRadius     = isDestMode ? walkFromStop : walkToStop;
+    // Near-home: fetch stops across the FULL search area, not just near the front door.
+    // Bus networks cover the whole region — we don't need the boarding stop to be
+    // near home, only the alighting stop to be near the trail.
+    const stopRadius = isDestMode ? walkFromStop : combinedRadius;
 
     // In destination mode also fetch home stops (departure leg) in parallel
     const fetchList = [
@@ -1077,7 +1080,7 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
     resultsDiv.innerHTML = `
       <div class="results-meta">
         <span class="results-count">${results.length} trail${results.length !== 1 ? 's' : ''} found</span>
-        <span class="results-hint">${searchMode === 'destination' ? `📍 ${destLabel} · ≤${fmt(walkFromStop)} stop to trail` : `≤${fmt(walkToStop)} to stop · ≤${fmt(walkFromStop)} stop to trail · trails closer than ${fmt(walkFromStop * 0.8)} hidden`}</span>
+        <span class="results-hint">${searchMode === 'destination' ? `📍 ${destLabel} · ≤${fmt(walkFromStop)} stop to trail` : `Within ${fmt(combinedRadius)} of home · bus/tram ≤${fmt(walkFromStop)} from trail`}</span>
         <div style="display:flex;gap:.45rem;flex-wrap:wrap">
           <button class="meta-btn" onclick="downloadAllGPX()">📦 Download all GPX</button>
           <button class="meta-btn" id="shareListBtn" onclick="shareList()">🔗 Share list</button>
