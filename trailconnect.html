@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TrailbyRail</title>
+<link href="https://fonts.googleapis.com/css2?family=Righteous&family=Public+Sans:wght@300;400;600;700&family=Playfair+Display:ital,wght@1,700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--forest-dark:#0d2416;--forest-med:#1a4a2f;--moss:#3a7d52;--trail-tan:#e8a84a;--amber:#f0c060;--cloud:#f5f7f2;--sunrise:#e8622a;--cream:#fffdf7;--shadow:rgba(13,36,22,0.22)}
+body{font-family:'Public Sans',sans-serif;background:var(--forest-dark);min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background:
+  radial-gradient(ellipse 120% 60% at 50% 100%, #e8622a22 0%, transparent 60%),
+  linear-gradient(170deg, #0d2416 0%, #122e1c 35%, #1a4a2f 65%, #0d2416 100%);
+  pointer-events:none;z-index:0}
+.container{max-width:1100px;margin:0 auto;padding:2rem;position:relative;z-index:1}
+
+/* ── Hero header ── */
+header{text-align:center;padding:3.5rem 1rem 2.5rem;animation:slideDown .9s cubic-bezier(.22,1,.36,1)}
+@keyframes slideDown{from{opacity:0;transform:translateY(-24px)}to{opacity:1;transform:translateY(0)}}
+.logo-mark{display:inline-flex;align-items:center;justify-content:center;margin-bottom:1.5rem;filter:drop-shadow(0 4px 16px rgba(232,98,42,.35))}
+.wordmark{font-family:'Righteous',cursive;font-size:clamp(2.8rem,9vw,5rem);color:#fff;letter-spacing:-.02em;line-height:1;margin-bottom:.6rem;text-shadow:0 2px 30px rgba(13,36,22,.5)}
+.wordmark em{font-style:normal;color:var(--trail-tan)}
+.hero-slogan{margin:0 auto 1rem;max-width:560px}
+.slogan-main{display:block;font-size:clamp(1.1rem,3vw,1.55rem);font-weight:700;color:#fff;line-height:1.35;letter-spacing:-.01em}
+.slogan-sub{display:inline-block;margin-top:.55rem;font-size:.95rem;color:rgba(255,255,255,.65);font-weight:300;letter-spacing:.04em}
+.slogan-highlight{background:var(--trail-tan);color:var(--forest-dark);padding:.05em .35em;border-radius:5px;font-style:italic;font-weight:700}
+.search-card{background:var(--cream);border-radius:24px;padding:2.5rem;box-shadow:0 24px 70px rgba(0,0,0,.45),0 0 0 1px rgba(255,255,255,.12) inset;margin-bottom:2rem;animation:fadeIn .8s ease-out .2s both;border:none}
+@keyframes fadeIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.search-form{display:grid;gap:1.5rem}
+.input-group{display:flex;flex-direction:column;gap:.5rem}
+label{font-weight:600;color:var(--forest-dark);font-size:.88rem;text-transform:uppercase;letter-spacing:.05em}
+input[type=text],select{padding:1rem 1.25rem;border:2px solid var(--moss);border-radius:12px;font-size:1rem;font-family:'Public Sans',sans-serif;transition:all .3s ease;background:var(--cloud)}
+input[type=text]:focus,select:focus{outline:none;border-color:var(--sunrise);background:white;box-shadow:0 4px 12px var(--shadow)}
+.location-row{display:flex;gap:.75rem}
+.location-row input{flex:1}
+.loc-btn{padding:0 1.25rem;border:2px solid var(--moss);background:var(--cloud);border-radius:12px;cursor:pointer;font-size:1.2rem;transition:all .3s;flex-shrink:0}
+.loc-btn:hover{background:var(--moss);border-color:var(--moss);color:white}
+.ac-wrap{position:relative;flex:1}
+.ac-wrap input{width:100%}
+.ac-dropdown{position:absolute;top:calc(100% + 5px);left:0;right:0;background:white;border:2px solid var(--moss);border-radius:12px;box-shadow:0 8px 24px var(--shadow);z-index:200;max-height:280px;overflow-y:auto;display:none}
+.ac-item{padding:.75rem 1.1rem;cursor:pointer;font-size:.9rem;color:var(--forest-dark);border-bottom:1px solid var(--cloud);line-height:1.3;transition:background .12s}
+.ac-item:last-child{border-bottom:none}
+.ac-item:hover,.ac-item.ac-active{background:var(--cloud)}
+.chip-row{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.1rem}
+.chip{display:inline-flex;align-items:center;gap:.35rem;padding:.45rem .9rem;border:2px solid var(--moss);border-radius:20px;cursor:pointer;font-size:.88rem;font-weight:600;color:var(--forest-dark);background:var(--cloud);transition:all .2s;user-select:none;white-space:nowrap}
+.chip input[type=checkbox]{display:none}
+.chip:has(input:checked){background:var(--moss);color:white;border-color:var(--moss)}
+.chip:hover{border-color:var(--forest-dark);transform:translateY(-1px)}
+.ac-item-main{font-weight:600}
+.ac-item-sub{font-size:.78rem;color:var(--moss);margin-top:.1rem}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem}
+.slider-group{display:flex;flex-direction:column;gap:.65rem}
+.slider-header{display:flex;justify-content:space-between;align-items:center}
+.slider-val{font-size:1rem;font-weight:700;color:var(--sunrise);background:var(--cloud);padding:.3rem .75rem;border-radius:8px;border:2px solid var(--trail-tan);min-width:60px;text-align:center}
+input[type=range]{width:100%;height:6px;border-radius:3px;outline:none;border:none;cursor:pointer;-webkit-appearance:none;padding:0;background:linear-gradient(to right,var(--moss) 0%,var(--moss) var(--fill,20%),#dde8e3 var(--fill,20%),#dde8e3 100%)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:var(--forest-dark);border:3px solid var(--trail-tan);cursor:pointer;box-shadow:0 2px 6px var(--shadow)}
+.slider-ticks{display:flex;justify-content:space-between;font-size:.7rem;color:var(--moss);opacity:.8}
+.btn-find{width:100%;padding:1.3rem;border:none;border-radius:12px;font-size:1.1rem;font-weight:600;font-family:'Righteous',cursive;cursor:pointer;background:linear-gradient(135deg,var(--moss),var(--forest-med));color:white;box-shadow:0 4px 15px rgba(74,124,89,.4);transition:all .3s;text-transform:uppercase;letter-spacing:.05em;position:relative;overflow:hidden}
+.btn-find::before{content:'';position:absolute;top:50%;left:50%;width:0;height:0;border-radius:50%;background:rgba(255,255,255,.2);transform:translate(-50%,-50%);transition:width .6s,height .6s}
+.btn-find:hover::before{width:600px;height:600px}
+.btn-find:hover{transform:translateY(-3px);box-shadow:0 6px 25px rgba(74,124,89,.5)}
+.btn-find:disabled{opacity:.6;cursor:not-allowed;transform:none!important}
+.loading{text-align:center;padding:3rem 2rem;color:var(--forest-med)}
+.loading-spinner{font-size:2.5rem;animation:spin 1.2s linear infinite;display:inline-block;margin-bottom:1rem}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-msg{font-size:1.1rem;color:var(--forest-dark)}
+.loading-sub{font-size:.9rem;color:var(--moss);margin-top:.5rem}
+.results-meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;padding:.75rem 1rem;background:rgba(255,255,255,.12);border-radius:12px;border:1px solid rgba(255,255,255,.15)}
+.results-count{font-family:'Righteous',cursive;font-size:1.2rem;color:#fff}
+.results-hint{font-size:.82rem;color:rgba(255,255,255,.65)}
+.results-grid{display:grid;gap:1.5rem}
+.trail-card{background:var(--cream);border-radius:20px;padding:2rem;box-shadow:0 8px 30px rgba(0,0,0,.35);border-left:6px solid var(--moss);transition:all .3s ease;animation:slideUp .5s ease-out backwards}
+@keyframes slideUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+.trail-card:hover{transform:translateX(6px);box-shadow:0 12px 40px var(--shadow);border-left-color:var(--sunrise)}
+.trail-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1.25rem;gap:1rem}
+.trail-name{font-family:'Righteous',cursive;font-size:1.35rem;color:var(--forest-dark);margin-bottom:.2rem}
+.trail-sub{font-size:.83rem;color:var(--moss);font-weight:600}
+.type-badge{display:inline-block;padding:.35rem .85rem;border-radius:8px;font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;flex-shrink:0;margin-top:.2rem}
+.badge-hiking{background:linear-gradient(135deg,var(--moss),var(--forest-med));color:white}
+.badge-cycling{background:linear-gradient(135deg,#ff6b35,#f7931e);color:white}
+.badge-nature{background:linear-gradient(135deg,var(--trail-tan),#c49060);color:var(--forest-dark)}
+.badge-swimming{background:linear-gradient(135deg,#0077b6,#00b4d8);color:white}
+.badge-skiing{background:linear-gradient(135deg,#5c8fc7,#a8d8ea);color:var(--forest-dark)}
+/* Journey chain */
+.journey-chain{display:flex;align-items:center;margin:1.25rem 0;padding:1.25rem 1rem;background:var(--cloud);border-radius:14px;overflow-x:auto;gap:0}
+.jnode{display:flex;flex-direction:column;align-items:center;gap:.3rem;flex-shrink:0;min-width:70px}
+.jicon{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.2rem}
+.jicon-home{background:var(--forest-dark);color:white}
+.jicon-stop{background:var(--moss);color:white}
+.jicon-trail{background:var(--sunrise);color:white}
+.jlabel{font-size:.72rem;font-weight:700;color:var(--forest-dark);text-align:center;max-width:80px;line-height:1.2}
+.jsub{font-size:.68rem;color:var(--moss);text-align:center;max-width:80px;line-height:1.2}
+.jleg{flex:1;display:flex;flex-direction:column;align-items:center;gap:.2rem;min-width:55px;padding:0 .25rem}
+.jline{height:3px;width:100%;background:linear-gradient(to right,var(--moss),var(--forest-med));border-radius:2px;position:relative}
+.jline::after{content:'▶';position:absolute;right:-5px;top:50%;transform:translateY(-50%);color:var(--forest-med);font-size:.65rem}
+.jdist{font-size:.72rem;font-weight:700;color:var(--forest-med);white-space:nowrap}
+/* Stops */
+.stops-section{margin-top:1.25rem}
+.stops-title{font-size:.78rem;font-weight:700;color:var(--moss);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.65rem}
+.stop-list{display:flex;flex-direction:column;gap:.45rem}
+.stop-item{display:flex;align-items:center;gap:.75rem;padding:.7rem 1rem;background:var(--cloud);border:2px solid transparent;border-radius:10px;transition:all .2s;cursor:pointer;text-decoration:none;color:inherit}
+.stop-item:hover{border-color:var(--moss);background:white;transform:translateX(4px)}
+.stop-item.best{border-color:var(--trail-tan);background:white}
+.stop-icon-sm{width:30px;height:30px;background:var(--moss);color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.8rem;flex-shrink:0}
+.stop-name{font-weight:600;color:var(--forest-dark);font-size:.92rem}
+.stop-meta{display:flex;flex-wrap:wrap;gap:.5rem;font-size:.76rem;color:var(--moss);margin-top:.1rem}
+.stop-lines{background:var(--forest-dark);color:white;padding:.1rem .4rem;border-radius:5px;font-weight:700;font-size:.7rem}
+/* Actions */
+.action-row{display:flex;gap:.6rem;flex-wrap:wrap;margin-top:1.25rem;padding-top:1.25rem;border-top:2px dashed rgba(74,124,89,.2)}
+.act-btn{padding:.55rem 1rem;border:2px solid var(--moss);background:transparent;color:var(--forest-dark);border-radius:9px;font-size:.85rem;font-weight:600;font-family:'Public Sans',sans-serif;cursor:pointer;transition:all .25s;text-decoration:none;display:inline-flex;align-items:center;gap:.3rem;white-space:nowrap}
+.act-btn:hover{background:var(--moss);color:white;border-color:var(--moss);transform:translateY(-2px)}
+.act-btn.primary{background:var(--moss);color:white}
+.act-btn.primary:hover{background:var(--forest-med);border-color:var(--forest-med)}
+.no-results{text-align:center;padding:4rem 2rem;color:var(--forest-med);animation:fadeIn .5s ease-out}
+.no-results-icon{font-size:4rem;margin-bottom:1rem;opacity:.5}
+.no-results h3{font-family:'Righteous',cursive;font-size:1.8rem;color:var(--forest-dark);margin-bottom:.75rem}
+.no-results p{max-width:420px;margin:0 auto;line-height:1.7;font-size:.95rem}
+.error{background:#fee;border:2px solid #c33;color:#c33;padding:1.5rem;border-radius:12px}
+.paywall-overlay{position:fixed;inset:0;background:rgba(20,40,20,.7);z-index:999;display:flex;align-items:center;justify-content:center;animation:fadeIn .3s}
+.paywall-box{background:#fff;border-radius:20px;padding:2.5rem 2rem;max-width:400px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.paywall-box h2{font-family:'Righteous',cursive;font-size:1.8rem;color:var(--forest-dark);margin-bottom:.5rem}
+.paywall-box p{color:var(--forest-med);line-height:1.7;margin-bottom:1.5rem}
+.paywall-box .price{font-size:2rem;font-weight:700;color:var(--moss);margin:.5rem 0}
+.paywall-box .price span{font-size:1rem;font-weight:400;color:var(--forest-med)}
+.paywall-cta{display:block;background:linear-gradient(135deg,var(--moss),var(--forest-med));color:#fff;padding:.9rem 2rem;border-radius:50px;font-weight:600;font-size:1rem;text-decoration:none;margin-bottom:.75rem;cursor:pointer;border:none;width:100%}
+.paywall-dismiss{font-size:.85rem;color:var(--moss);cursor:pointer;background:none;border:none;text-decoration:underline}
+.query-counter{font-size:.75rem;color:var(--moss);text-align:right;margin-top:.25rem;opacity:.7}
+.source-pill{font-size:.68rem;padding:.18rem .55rem;border-radius:20px;font-weight:700;letter-spacing:.03em;vertical-align:middle;margin-left:.35rem}
+.src-osm{background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7}
+.src-oda{background:#fff3e0;color:#c84b00;border:1px solid #ffcc80}
+.src-custom{background:#f3e5f5;color:#7b1fa2;border:1px solid #ce93d8}
+.loop-panel{display:none;margin-top:1rem;padding:1.1rem;background:var(--cloud);border-radius:12px;border:2px solid var(--moss);animation:fadeIn .25s ease-out}
+.loop-panel.open{display:block}
+.upload-card{background:var(--cream);border-radius:24px;padding:2rem;box-shadow:0 24px 70px rgba(0,0,0,.45);margin-bottom:2rem;border:none}
+.upload-card h2{font-family:'Righteous',cursive;color:var(--forest-dark);font-size:1.3rem;margin-bottom:1.25rem}
+.upload-form{padding:1.1rem;background:var(--cloud);border-radius:12px;margin-bottom:1rem;display:none}
+.route-list{display:flex;flex-direction:column;gap:.45rem;margin-top:.75rem}
+.route-item{display:flex;align-items:center;gap:.75rem;padding:.65rem 1rem;background:var(--cloud);border-radius:10px}
+.route-item-info{flex:1;min-width:0}
+.route-item-name{font-weight:600;font-size:.92rem;color:var(--forest-dark);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.route-item-meta{font-size:.76rem;color:var(--moss);margin-top:.1rem}
+.btn-delete{background:transparent;border:none;color:#c33;cursor:pointer;font-size:1rem;padding:.2rem .4rem;border-radius:6px;transition:background .15s;flex-shrink:0}
+.btn-delete:hover{background:#fee}
+.diff-easy{color:#2e7d32;font-weight:700;font-size:.8rem}
+.diff-moderate{color:#f57c00;font-weight:700;font-size:.8rem}
+.diff-hard,.diff-difficult{color:#c62828;font-weight:700;font-size:.8rem}
+details.api-settings{margin-top:1rem;border-top:2px dashed rgba(74,124,89,.2);padding-top:1rem}
+details.api-settings summary{font-size:.85rem;font-weight:600;color:var(--moss);cursor:pointer;user-select:none;list-style:none;display:flex;align-items:center;gap:.4rem}
+details.api-settings summary::before{content:'⚙️'}
+details.api-settings[open] summary{margin-bottom:.85rem}
+.api-key-row{display:flex;flex-direction:column;gap:.4rem}
+.api-key-row small{font-size:.78rem;color:var(--moss)}
+.api-key-row a{color:var(--moss)}
+.deco{position:fixed;pointer-events:none;z-index:0}
+.deco-1{top:12%;left:2%;font-size:9rem;opacity:.06;animation:sway 6s ease-in-out infinite}
+.deco-2{bottom:18%;right:3%;font-size:12rem;opacity:.05;animation:sway 7s ease-in-out infinite 1s}
+@keyframes sway{0%,100%{transform:rotate(-2deg)}50%{transform:rotate(2deg)}}
+@media(max-width:700px){.form-row{grid-template-columns:1fr}.journey-chain{padding:.9rem .5rem}}
+</style>
+</head>
+<body>
+<div class="deco deco-1">🌲</div>
+<div class="deco deco-2">🏔️</div>
+<div class="container">
+  <header>
+    <div class="logo-mark">
+      <svg width="72" height="72" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- mountain -->
+        <path d="M36 10 L58 52 H14 Z" fill="none" stroke="#e8a84a" stroke-width="3.5" stroke-linejoin="round"/>
+        <path d="M20 52 L36 24 L44 38" fill="none" stroke="rgba(232,168,74,.45)" stroke-width="2.5" stroke-linejoin="round"/>
+        <!-- snow cap -->
+        <path d="M36 10 L42 24 L36 20 L30 24 Z" fill="#e8a84a" opacity=".9"/>
+        <!-- rail track (two lines + sleepers) -->
+        <line x1="14" y1="60" x2="58" y2="60" stroke="#3a7d52" stroke-width="2.5" stroke-linecap="round"/>
+        <line x1="14" y1="66" x2="58" y2="66" stroke="#3a7d52" stroke-width="2.5" stroke-linecap="round"/>
+        <line x1="22" y1="57" x2="22" y2="69" stroke="#3a7d52" stroke-width="2" stroke-linecap="round"/>
+        <line x1="32" y1="57" x2="32" y2="69" stroke="#3a7d52" stroke-width="2" stroke-linecap="round"/>
+        <line x1="42" y1="57" x2="42" y2="69" stroke="#3a7d52" stroke-width="2" stroke-linecap="round"/>
+        <line x1="52" y1="57" x2="52" y2="69" stroke="#3a7d52" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <h1 class="wordmark">Trail<em>by</em>Rail</h1>
+    <div class="hero-slogan">
+      <span class="slogan-main">Discover trails — <span class="slogan-highlight">no car needed</span></span>
+      <span class="slogan-sub">Find hiking, cycling &amp; outdoor spots reachable by public transport</span>
+    </div>
+  </header>
+
+  <div class="search-card">
+    <form class="search-form" id="searchForm">
+      <div class="input-group">
+        <label for="location">📍 Your address or area</label>
+        <div class="location-row">
+          <div class="ac-wrap">
+            <input type="text" id="location" placeholder="e.g. Amsterdam Centraal, Breda, Utrecht…" required autocomplete="off">
+            <div class="ac-dropdown" id="acDropdown"></div>
+          </div>
+          <button type="button" class="loc-btn" id="locationBtn" title="Detect my location">📡</button>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="input-group">
+          <label for="activity">Activity</label>
+          <select id="activity">
+            <option value="hiking">🥾 Hiking / Running</option>
+            <option value="cycling">🚴 Cycling</option>
+            <option value="swimming">🏊 Swimming</option>
+            <option value="skiing">⛷️ Skiing</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="input-group" id="trailTypeGroup">
+        <label>Trail types</label>
+        <div class="chip-row" id="trailTypeChips"></div>
+      </div>
+
+      <div class="input-group">
+        <label>Transport modes</label>
+        <div class="chip-row">
+          <label class="chip"><input type="checkbox" name="ptMode" value="bus" checked>🚌 Bus</label>
+          <label class="chip"><input type="checkbox" name="ptMode" value="tram" checked>🚊 Tram</label>
+          <label class="chip"><input type="checkbox" name="ptMode" value="train" checked>🚂 Train</label>
+          <label class="chip"><input type="checkbox" name="ptMode" value="metro" checked>🚇 Metro</label>
+        </div>
+      </div>
+
+      <div class="slider-group">
+        <div class="slider-header">
+          <label id="walkToStopLabel">🚶 Walk from home to stop</label>
+          <span class="slider-val" id="walkToStopVal">5km</span>
+        </div>
+        <input type="range" id="walkToStop" min="500" max="10000" step="500" value="5000">
+        <div class="slider-ticks" id="walkToStopTicks"><span>500m</span><span>2.5km</span><span>5km</span><span>7.5km</span><span>10km</span></div>
+      </div>
+
+      <div class="slider-group">
+        <div class="slider-header">
+          <label id="walkFromStopLabel">🏔️ Walk from stop to trailhead</label>
+          <span class="slider-val" id="walkFromStopVal">5km</span>
+        </div>
+        <input type="range" id="walkFromStop" min="500" max="15000" step="500" value="5000">
+        <div class="slider-ticks" id="walkFromStopTicks"><span>500m</span><span>4km</span><span>7.5km</span><span>11km</span><span>15km</span></div>
+      </div>
+
+      <button type="submit" class="btn-find" id="findBtn">
+        <span style="position:relative;z-index:1">🔍 Find Trails</span>
+      </button>
+      <div class="query-counter" id="queryCounter"></div>
+
+    </form>
+  </div>
+
+  <div class="upload-card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h2>📁 My Routes</h2>
+      <button class="act-btn" onclick="toggleUploadForm()">+ Upload GPX</button>
+    </div>
+    <div class="upload-form" id="uploadForm">
+      <div class="input-group" style="margin-bottom:.75rem">
+        <label for="uploadName">Route name <span style="font-weight:400;color:var(--moss)">(optional)</span></label>
+        <input type="text" id="uploadName" placeholder="e.g. Mastbos loop">
+      </div>
+      <div class="input-group" style="margin-bottom:.75rem">
+        <label for="uploadType">Activity</label>
+        <select id="uploadType">
+          <option value="hiking">🥾 Hiking / Running</option>
+          <option value="cycling">🚴 Cycling</option>
+          <option value="swimming">🏊 Swimming</option>
+          <option value="skiing">⛷️ Skiing</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
+        <input type="file" id="gpxFile" accept=".gpx" style="flex:1;min-width:0">
+        <button class="act-btn primary" onclick="doUploadGPX()">Upload</button>
+      </div>
+      <div id="uploadStatus" style="margin-top:.5rem;font-size:.85rem"></div>
+    </div>
+    <div class="route-list" id="myRoutesList"><p style="color:var(--moss);font-size:.9rem">Loading…</p></div>
+  </div>
+
+  <div id="results"></div>
+</div>
+
+<script>
+let homeLat, homeLon, currentTrails = [], selectedCoords = null;
+
+// Autocomplete
+const locInput = document.getElementById('location');
+const acDropdown = document.getElementById('acDropdown');
+let acTimer;
+
+locInput.addEventListener('input', function() {
+  selectedCoords = null;
+  clearTimeout(acTimer);
+  const q = this.value.trim();
+  if (q.length < 3) { hideAC(); return; }
+  acTimer = setTimeout(() => fetchAC(q), 300);
+});
+
+locInput.addEventListener('keydown', function(e) {
+  const items = acDropdown.querySelectorAll('.ac-item');
+  const active = acDropdown.querySelector('.ac-item.ac-active');
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    const next = active ? active.nextElementSibling : items[0];
+    if (next) { active?.classList.remove('ac-active'); next.classList.add('ac-active'); next.scrollIntoView({block:'nearest'}); }
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    const prev = active?.previousElementSibling;
+    if (prev) { active.classList.remove('ac-active'); prev.classList.add('ac-active'); prev.scrollIntoView({block:'nearest'}); }
+  } else if (e.key === 'Enter' && active) {
+    e.preventDefault();
+    pickItem(active);
+  } else if (e.key === 'Escape') {
+    hideAC();
+  }
+});
+
+locInput.addEventListener('blur', () => setTimeout(hideAC, 150));
+
+async function fetchAC(q) {
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=6&addressdetails=1`, {headers:{'Accept-Language':'nl,en'}});
+    const data = await r.json();
+    renderAC(data);
+  } catch { hideAC(); }
+}
+
+function renderAC(items) {
+  if (!items.length) { hideAC(); return; }
+  acDropdown.innerHTML = items.map(item => {
+    const {main, sub} = fmtSuggestion(item);
+    return `<div class="ac-item" data-lat="${item.lat}" data-lon="${item.lon}" data-name="${esc(main + (sub ? ', ' + sub.split(',')[0] : ''))}">
+      <div class="ac-item-main">${main}</div>
+      ${sub ? `<div class="ac-item-sub">${sub}</div>` : ''}
+    </div>`;
+  }).join('');
+  acDropdown.querySelectorAll('.ac-item').forEach(el => el.addEventListener('mousedown', e => { e.preventDefault(); pickItem(el); }));
+  acDropdown.style.display = 'block';
+}
+
+function pickItem(el) {
+  locInput.value = el.dataset.name;
+  selectedCoords = {lat: parseFloat(el.dataset.lat), lon: parseFloat(el.dataset.lon)};
+  hideAC();
+}
+
+function hideAC() { acDropdown.style.display = 'none'; acDropdown.innerHTML = ''; }
+
+function fmtSuggestion(item) {
+  const a = item.address || {};
+  const road = a.road ? a.road + (a.house_number ? ' ' + a.house_number : '') : null;
+  const city = a.city || a.town || a.village || a.municipality || a.county || '';
+  const country = a.country || '';
+  const main = road || a.suburb || a.neighbourhood || city || item.display_name.split(',')[0];
+  const subParts = [road ? city : '', country].filter(Boolean);
+  return {main, sub: subParts.join(', ')};
+}
+
+function esc(s) { return s.replace(/"/g, '&quot;'); }
+
+function fmt(m) {
+  m = Math.round(m);
+  return m < 1000 ? m + 'm' : (m / 1000).toFixed(m < 5000 ? 1 : 0) + 'km';
+}
+
+function updateSlider(id, valId) {
+  const el = document.getElementById(id);
+  const val = parseInt(el.value);
+  document.getElementById(valId).textContent = fmt(val);
+  const pct = ((val - el.min) / (el.max - el.min)) * 100;
+  el.style.setProperty('--fill', pct + '%');
+}
+
+const ACTIVITY_CONFIG = {
+  hiking:   {
+    toStopLabel:   '🚶 Walk from home to stop',
+    fromStopLabel: '🥾 Walk from stop to trailhead',
+    toStop:   {min:500,  max:10000, step:500,  value:5000,  ticks:['500m','2.5km','5km','7.5km','10km']},
+    fromStop: {min:500,  max:15000, step:500,  value:5000,  ticks:['500m','4km','7.5km','11km','15km']},
+  },
+  cycling:  {
+    toStopLabel:   '🚴 Cycle from home to stop',
+    fromStopLabel: '🚴 Cycle from stop to trailhead',
+    toStop:   {min:1000, max:50000, step:1000, value:30000, ticks:['1km','12km','25km','37km','50km']},
+    fromStop: {min:1000, max:50000, step:1000, value:30000, ticks:['1km','12km','25km','37km','50km']},
+  },
+  swimming: {
+    toStopLabel:   '🚶 Walk from home to stop',
+    fromStopLabel: '🏊 Walk from stop to swimming spot',
+    toStop:   {min:500,  max:10000, step:500,  value:5000,  ticks:['500m','2.5km','5km','7.5km','10km']},
+    fromStop: {min:500,  max:10000, step:500,  value:5000,  ticks:['500m','2.5km','5km','7.5km','10km']},
+  },
+  skiing:   {
+    toStopLabel:   '🚶 Walk from home to stop',
+    fromStopLabel: '⛷️ Walk from stop to ski area',
+    toStop:   {min:500,  max:10000, step:500,  value:5000,  ticks:['500m','2.5km','5km','7.5km','10km']},
+    fromStop: {min:500,  max:10000, step:500,  value:5000,  ticks:['500m','2.5km','5km','7.5km','10km']},
+  },
+};
+
+const TRAIL_TYPE_DEFS = {
+  hiking:   [{id:'hiking',   label:'🥾 Hiking trails'}, {id:'running', label:'🏃 Running routes'},
+             {id:'nature',   label:'🌿 Nature reserves'}, {id:'park',  label:'🌲 National parks'}],
+  cycling:  [{id:'cycling',  label:'🚴 Cycling routes'}, {id:'mtb',   label:'🚵 MTB'}],
+  swimming: [{id:'swimming', label:'🏊 Swimming spots'}, {id:'lido',  label:'🌊 Open water / lido'}],
+  skiing:   [{id:'downhill', label:'⛷️ Downhill'},       {id:'nordic', label:'🎿 Nordic / XC'}],
+};
+
+function setSliders(activity) {
+  const cfg = ACTIVITY_CONFIG[activity] || ACTIVITY_CONFIG.hiking;
+  const to = document.getElementById('walkToStop');
+  to.min = cfg.toStop.min; to.max = cfg.toStop.max; to.step = cfg.toStop.step; to.value = cfg.toStop.value;
+  document.getElementById('walkToStopTicks').innerHTML  = cfg.toStop.ticks.map(t => `<span>${t}</span>`).join('');
+  document.getElementById('walkToStopLabel').textContent = cfg.toStopLabel;
+  const from = document.getElementById('walkFromStop');
+  from.min = cfg.fromStop.min; from.max = cfg.fromStop.max; from.step = cfg.fromStop.step; from.value = cfg.fromStop.value;
+  document.getElementById('walkFromStopTicks').innerHTML  = cfg.fromStop.ticks.map(t => `<span>${t}</span>`).join('');
+  document.getElementById('walkFromStopLabel').textContent = cfg.fromStopLabel;
+  updateSlider('walkToStop',   'walkToStopVal');
+  updateSlider('walkFromStop', 'walkFromStopVal');
+}
+
+function updateTrailTypeChips(activity) {
+  const defs = TRAIL_TYPE_DEFS[activity] || TRAIL_TYPE_DEFS.hiking;
+  document.getElementById('trailTypeChips').innerHTML = defs.map(d =>
+    `<label class="chip"><input type="checkbox" name="trailType" value="${d.id}" checked>${d.label}</label>`
+  ).join('');
+}
+
+function getChecked(name) {
+  return [...document.querySelectorAll(`input[name="${name}"]:checked`)].map(el => el.value);
+}
+
+document.getElementById('activity').addEventListener('change', function() {
+  setSliders(this.value);
+  updateTrailTypeChips(this.value);
+});
+document.getElementById('walkToStop').addEventListener('input',   () => updateSlider('walkToStop',   'walkToStopVal'));
+document.getElementById('walkFromStop').addEventListener('input', () => updateSlider('walkFromStop', 'walkFromStopVal'));
+setSliders(document.getElementById('activity').value);
+updateTrailTypeChips(document.getElementById('activity').value);
+
+function dist(lat1, lon1, lat2, lon2) {
+  const R = 6371000, dl = (lat2-lat1)*Math.PI/180, do_ = (lon2-lon1)*Math.PI/180;
+  return R * 2 * Math.atan2(
+    Math.sqrt(Math.sin(dl/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(do_/2)**2),
+    Math.sqrt(1 - Math.sin(dl/2)**2 - Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(do_/2)**2)
+  );
+}
+
+async function overpass(query) {
+  const r = await fetch('/api/overpass', {
+    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({query})
+  });
+  if (!r.ok) {
+    let msg = 'Overpass error';
+    try { const e = await r.json(); msg = e.error || msg; } catch {}
+    throw new Error(msg);
+  }
+  return r.json();
+}
+
+async function geocode(loc) {
+  if (selectedCoords) { const c = selectedCoords; selectedCoords = null; return c; }
+  const r = await fetch('/api/geocode', {
+    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({location: loc})
+  });
+  const d = await r.json();
+  if (!d.length) throw new Error(`Location not found: "${loc}"`);
+  return {lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon)};
+}
+
+async function reverseGeocode(lat, lon) {
+  try {
+    const d = await (await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`)).json();
+    const a = d.address || {};
+    const street = a.road ? a.road + (a.house_number ? ' ' + a.house_number : '') : null;
+    const city = a.city || a.town || a.village || '';
+    return street ? `${street}, ${city}` : city || `${lat.toFixed(3)}, ${lon.toFixed(3)}`;
+  } catch { return `${lat.toFixed(3)}, ${lon.toFixed(3)}`; }
+}
+
+function stopType(tags) {
+  if (tags.railway === 'station') return 'Train station';
+  if (tags.railway === 'halt') return 'Train halt';
+  if (tags.railway === 'tram_stop') return 'Tram stop';
+  if (tags.railway === 'subway_entrance') return 'Metro';
+  if (tags.amenity === 'bus_station') return 'Bus station';
+  return 'Bus stop';
+}
+function stopIcon(tags) {
+  if (tags.railway === 'station' || tags.railway === 'halt') return '🚂';
+  if (tags.railway === 'tram_stop') return '🚊';
+  if (tags.railway === 'subway_entrance') return '🚇';
+  return '🚌';
+}
+
+async function fetchStops(lat, lon, radiusM, modes) {
+  const r = Math.round(radiusM);
+  const a = `around:${r},${lat},${lon}`;
+  const lines = [
+    modes.includes('bus')   && `node["highway"="bus_stop"](${a});\n    node["amenity"="bus_station"](${a});`,
+    modes.includes('tram')  && `node["railway"="tram_stop"](${a});`,
+    modes.includes('train') && `node["railway"="station"](${a});\n    node["railway"="halt"](${a});`,
+    modes.includes('metro') && `node["railway"="subway_entrance"](${a});`,
+  ].filter(Boolean).join('\n    ');
+  if (!lines) return [];
+  const q = `[out:json][timeout:25];(\n    ${lines}\n  );out body;`;
+  const data = await overpass(q);
+  return data.elements.filter(e => e.lat && e.lon).map(e => ({
+    id: e.id, lat: e.lat, lon: e.lon,
+    name: e.tags?.name || e.tags?.ref || 'Unnamed stop',
+    type: stopType(e.tags || {}),
+    icon: stopIcon(e.tags || {}),
+    lines: e.tags?.route_ref || e.tags?.ref || '',
+    distFromHome: dist(lat, lon, e.lat, e.lon)
+  }));
+}
+
+// ── Outdooractive ─────────────────────────────────────────────────────────────
+
+const ODA_CATS = {hiking:'tour/hiking', cycling:'tour/cycling', mtb:'tour/mountainbiking'};
+
+async function fetchOutdooractive(lat, lon, radiusM, subtypes) {
+  const radiusKm = Math.max(1, Math.ceil(radiusM / 1000));
+  const cats = [...new Set(subtypes.filter(s => ODA_CATS[s]).map(s => ODA_CATS[s]))];
+  if (!cats.length) return [];
+
+  const results = await Promise.all(cats.map(cat =>
+    fetch('/api/outdooractive', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({lat, lon, cat, radius: radiusKm, limit: 20})
+    }).then(r => r.json())
+      .then(d => {
+        const arr = d.tours || d.results || (Array.isArray(d) ? d : []);
+        const subtype = Object.keys(ODA_CATS).find(k => ODA_CATS[k] === cat) || 'hiking';
+        return arr.map(t => parseODA(t, subtype)).filter(Boolean);
+      })
+      .catch(() => [])
+  ));
+
+  const seen = new Set();
+  return results.flat().filter(t => !seen.has(t.id) && seen.add(t.id));
+}
+
+function parseODA(t, subtype) {
+  const lat = parseFloat(t.geometry?.start?.lat ?? t.startPoint?.lat ?? t.lat);
+  const lon = parseFloat(t.geometry?.start?.lng ?? t.geometry?.start?.lon
+              ?? t.startPoint?.lng ?? t.lng ?? t.lon);
+  if (!lat || !lon || !t.title) return null;
+  let type = 'hiking', label = 'Hiking Trail', icon = '🥾';
+  if (subtype === 'cycling') { type = 'cycling'; label = 'Cycling Route'; icon = '🚴'; }
+  if (subtype === 'mtb')     { type = 'cycling'; label = 'MTB Route';      icon = '🚵'; }
+  const distM   = t.stats?.length ?? t.length ?? t.distance;
+  const ascent  = t.stats?.ascent ?? t.ascent ?? null;
+  const diff    = t.ratings?.difficulty ?? t.difficulty ?? null;
+  const diffMap = {1:'easy', 2:'moderate', 3:'hard', 4:'hard', easy:'easy', moderate:'moderate', hard:'hard'};
+  return {
+    id: `oda_${t.id}`, name: t.title,
+    sub: t.primaryCategory?.name ?? null,
+    trailDist: distM ? (distM / 1000).toFixed(1) : null,
+    difficulty: diff != null ? (diffMap[diff] ?? String(diff).toLowerCase()) : null,
+    isLoop: !!(t.roundtrip ?? t.isRoundtrip),
+    type, label, icon, lat, lon,
+    source: 'oda', wtType: null,
+    oda_url: t.url ?? null,
+    elevGain: ascent,
+  };
+}
+
+
+// ── Waymarked Trails ─────────────────────────────────────────────────────────
+
+function toBbox(lat, lon, radiusM) {
+  const dlat = radiusM / 111320;
+  const dlon = radiusM / (111320 * Math.cos(lat * Math.PI / 180));
+  return `${(lon-dlon).toFixed(5)},${(lat-dlat).toFixed(5)},${(lon+dlon).toFixed(5)},${(lat+dlat).toFixed(5)}`;
+}
+
+async function wtCall(type, routeType, params) {
+  const r = await fetch('/api/waymarked-trails', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({type, route_type: routeType, ...params})
+  });
+  if (!r.ok) throw new Error(`WT API error ${r.status}`);
+  return type === 'gpx' ? r.blob() : r.json();
+}
+
+// ── Overpass trail + area search ─────────────────────────────────────────────
+
+async function fetchTrails(lat, lon, radiusM, subtypes) {
+  const r = Math.min(Math.round(radiusM), 25000);
+  const a = `around:${r},${lat},${lon}`;
+  const lines = [
+    subtypes.includes('hiking')   && `relation["route"="hiking"]["name"](${a});`,
+    subtypes.includes('running')  && `relation["route"="running"]["name"](${a});`,
+    subtypes.includes('nature')   && `way["leisure"="nature_reserve"]["name"](${a});\n    relation["leisure"="nature_reserve"]["name"](${a});`,
+    subtypes.includes('park')     && `way["boundary"="national_park"]["name"](${a});\n    relation["boundary"="national_park"]["name"](${a});`,
+    subtypes.includes('cycling')  && `relation["route"="bicycle"]["name"](${a});`,
+    subtypes.includes('mtb')      && `relation["route"="mtb"]["name"](${a});`,
+    subtypes.includes('swimming') && `node["leisure"="swimming_area"](${a});\n    node["sport"="swimming"]["leisure"](${a});\n    way["leisure"="swimming_area"](${a});`,
+    subtypes.includes('lido')     && `node["leisure"="swimming_pool"]["access"!="private"](${a});\n    node["natural"="water"]["sport"="swimming"](${a});\n    way["natural"="water"]["sport"="swimming"](${a});`,
+    subtypes.includes('downhill') && `node["leisure"="ski_resort"](${a});\n    way["piste:type"="downhill"](${a});\n    relation["route"="ski"]["piste:type"="downhill"](${a});`,
+    subtypes.includes('nordic')   && `relation["route"="ski"]["piste:type"="nordic"](${a});\n    way["piste:type"="nordic"](${a});`,
+  ].filter(Boolean).join('\n    ');
+  if (!lines) return [];
+  const q = `[out:json][timeout:60];(\n    ${lines}\n  );out center tags;`;
+  const data = await overpass(q);
+  const seen = new Set();
+  return data.elements.map(el => {
+    const tags = el.tags || {};
+    const c = el.center || {lat: el.lat, lon: el.lon};
+    if (!c?.lat || !tags.name || seen.has(tags.name)) return null;
+    seen.add(tags.name);
+    let type = 'nature', label = 'Nature Area', icon = '🌿', wtType = null;
+    if      (tags.route === 'hiking')                              { type='hiking';   label='Hiking Trail';    icon='🥾'; wtType='hiking'; }
+    else if (tags.route === 'running')                             { type='hiking';   label='Running Route';   icon='🏃'; }
+    else if (tags.route === 'bicycle')                             { type='cycling';  label='Cycling Route';   icon='🚴'; wtType='cycling'; }
+    else if (tags.route === 'mtb')                                 { type='cycling';  label='MTB Route';       icon='🚵'; wtType='mtb'; }
+    else if (tags.leisure === 'swimming_area' || tags.sport === 'swimming') { type='swimming'; label='Swimming Spot';    icon='🏊'; }
+    else if (tags.leisure === 'swimming_pool')                     { type='swimming'; label='Swimming Pool';   icon='🏊'; }
+    else if (tags.natural === 'water' && tags.sport === 'swimming'){ type='swimming'; label='Open Water';      icon='🌊'; }
+    else if (tags.leisure === 'ski_resort')                        { type='skiing';   label='Ski Resort';      icon='⛷️'; }
+    else if (tags['piste:type'] === 'downhill' || (tags.route === 'ski' && tags['piste:type'] === 'downhill')) { type='skiing'; label='Downhill Ski';  icon='⛷️'; }
+    else if (tags['piste:type'] === 'nordic'   || (tags.route === 'ski' && tags['piste:type'] === 'nordic'))   { type='skiing'; label='Nordic Skiing'; icon='🎿'; }
+    else if (tags.boundary === 'national_park')                    { type='nature';   label='National Park';   icon='🌲'; }
+    else if (tags.leisure === 'nature_reserve')                    { type='nature';   label='Nature Reserve';  icon='🌿'; }
+    return {
+      id: el.id, name: tags.name,
+      sub: tags.network || tags.operator || tags.ref || null,
+      trailDist: tags.distance || tags['route:km'] || null,
+      isLoop: tags.roundtrip === 'yes',
+      type, label, icon, lat: c.lat, lon: c.lon,
+      source: wtType ? 'wt' : 'osm', wtType
+    };
+  }).filter(Boolean);
+}
+
+// ── GPX download ─────────────────────────────────────────────────────────────
+
+async function downloadGPX(idx) {
+  const t = currentTrails[idx];
+  if (t.source === 'custom') {
+    return downloadCustomGPX(t.dbId, t.name);
+  } else if (t.source === 'wt') {
+    const blob = await wtCall('gpx', t.wtType, {id: t.id});
+    const a = Object.assign(document.createElement('a'), {
+      href: URL.createObjectURL(blob),
+      download: t.name.replace(/[^a-z0-9]/gi, '_') + '.gpx'
+    });
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  } else {
+    const gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="TrailbyRail" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata><name>${t.name}</name></metadata>
+  <wpt lat="${t.lat}" lon="${t.lon}"><name>${t.name}</name></wpt>
+</gpx>`;
+    const a = Object.assign(document.createElement('a'), {
+      href: URL.createObjectURL(new Blob([gpx], {type:'application/gpx+xml'})),
+      download: t.name.replace(/[^a-z0-9]/gi, '_') + '.gpx'
+    });
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  }
+}
+
+// ── Freemium query counter ────────────────────────────────────────────────────
+const FREE_LIMIT = 20;
+
+function updateQueryCounter(used, limit) {
+  const el = document.getElementById('queryCounter');
+  if (!el) return;
+  if (used >= limit) {
+    el.textContent = 'Free searches used up — upgrade for unlimited access';
+    el.style.color = '#c33';
+    el.style.opacity = '1';
+  } else {
+    const left = limit - used;
+    el.textContent = `${left} free search${left !== 1 ? 'es' : ''} remaining`;
+    el.style.color = '';
+    el.style.opacity = '.7';
+  }
+}
+
+async function startCheckout(btn) {
+  const orig = btn.textContent;
+  btn.textContent = 'Redirecting…';
+  btn.disabled = true;
+  try {
+    const r = await fetch('/api/checkout', { method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}' });
+    const d = await r.json();
+    if (d.url) { window.location.href = d.url; return; }
+    throw new Error(d.error || 'Checkout failed');
+  } catch (e) {
+    btn.textContent = orig;
+    btn.disabled = false;
+    alert(e.message);
+  }
+}
+
+function showPaywall() {
+  if (document.getElementById('paywallOverlay')) return;
+  const overlay = document.createElement('div');
+  overlay.id = 'paywallOverlay';
+  overlay.className = 'paywall-overlay';
+  overlay.innerHTML = `
+    <div class="paywall-box">
+      <div style="font-size:3rem;margin-bottom:.75rem">🏔️</div>
+      <h2>You've explored a lot!</h2>
+      <p>You've used all <strong>${FREE_LIMIT} free searches</strong>.<br>
+         Upgrade to keep finding car-free trails — unlimited searches, GPX downloads, and saved routes.</p>
+      <div class="price">€4.99 <span>/ month</span></div>
+      <button class="paywall-cta" onclick="startCheckout(this)">Upgrade to Pro</button>
+      <button class="paywall-dismiss" onclick="document.getElementById('paywallOverlay').remove()">Maybe later</button>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+document.getElementById('searchForm').addEventListener('submit', async e => {
+  e.preventDefault();
+
+  // Check server-side quota before doing anything
+  let gateRes;
+  try {
+    gateRes = await fetch('/api/search-gate', { method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}' });
+  } catch {
+    gateRes = { ok: false, status: 0 };
+  }
+  if (gateRes.status === 429 || !gateRes.ok && gateRes.status !== 0) {
+    const gd = await gateRes.json().catch(() => ({}));
+    updateQueryCounter(gd.used ?? FREE_LIMIT, gd.limit ?? FREE_LIMIT);
+    showPaywall();
+    return;
+  }
+  const gd = await gateRes.json().catch(() => ({ used: 0, limit: FREE_LIMIT }));
+  updateQueryCounter(gd.used, gd.limit);
+
+  const location = document.getElementById('location').value.trim();
+  const activity = document.getElementById('activity').value;
+  const walkToStop = parseInt(document.getElementById('walkToStop').value);
+  const walkFromStop = parseInt(document.getElementById('walkFromStop').value);
+  const ptModes = getChecked('ptMode');
+  const trailSubtypes = getChecked('trailType');
+  if (!ptModes.length) { alert('Select at least one transport mode.'); return; }
+  if (!trailSubtypes.length) { alert('Select at least one trail type.'); return; }
+  const btn = document.getElementById('findBtn');
+  const resultsDiv = document.getElementById('results');
+
+  btn.disabled = true;
+  resultsDiv.innerHTML = `<div class="loading">
+    <div class="loading-spinner">🔄</div>
+    <div class="loading-msg">Finding trails reachable by public transport…</div>
+    <div class="loading-sub">Searching stops within ${fmt(walkToStop)} of home · trails within ${fmt(walkFromStop)} of a stop</div>
+  </div>`;
+
+  try {
+    const coords = await geocode(location);
+    homeLat = coords.lat; homeLon = coords.lon;
+
+    const combinedRadius = walkToStop + walkFromStop;
+    const [stops, osmTrails, odaTrails, customTrails] = await Promise.all([
+      fetchStops(homeLat, homeLon, walkToStop, ptModes),
+      fetchTrails(homeLat, homeLon, combinedRadius, trailSubtypes),
+      fetchOutdooractive(homeLat, homeLon, combinedRadius, trailSubtypes),
+      fetchCustomRoutes(homeLat, homeLon, combinedRadius),
+    ]);
+
+    const osmNames = new Set(osmTrails.map(t => t.name.toLowerCase()));
+    const trails = [
+      ...customTrails,  // custom routes always shown first
+      ...osmTrails,
+      ...odaTrails.filter(t => !osmNames.has(t.name.toLowerCase())),
+    ];
+
+    const results = trails.map(trail => {
+      const connecting = stops
+        .map(s => ({...s, distToTrail: dist(trail.lat, trail.lon, s.lat, s.lon)}))
+        .filter(s => s.distToTrail <= walkFromStop)
+        .sort((a, b) => a.distToTrail - b.distToTrail)
+        .slice(0, 4);
+      return {...trail, stops: connecting};
+    }).filter(t => t.stops.length > 0)
+      .sort((a, b) => a.stops[0].distToTrail - b.stops[0].distToTrail);
+
+    currentTrails = results;
+    btn.disabled = false;
+
+    if (!results.length) {
+      resultsDiv.innerHTML = `<div class="no-results">
+        <div class="no-results-icon">🏞️</div>
+        <h3>No results found</h3>
+        <p>No trails with a nearby PT stop were found. Try increasing the "walk from stop to trail" distance, or search a different area.</p>
+      </div>`;
+      return;
+    }
+
+    resultsDiv.innerHTML = `
+      <div class="results-meta">
+        <span class="results-count">${results.length} trail${results.length !== 1 ? 's' : ''} found</span>
+        <span class="results-hint">≤${fmt(walkToStop)} to stop · ≤${fmt(walkFromStop)} stop to trail</span>
+      </div>
+      <div class="results-grid">
+        ${results.map((t, i) => renderCard(t, i)).join('')}
+      </div>`;
+
+  } catch(err) {
+    btn.disabled = false;
+    resultsDiv.innerHTML = `<div class="error">⚠️ ${err.message}</div>`;
+  }
+});
+
+function renderCard(trail, idx) {
+  const best = trail.stops[0];
+  const badgeClass = trail.type === 'hiking' ? 'badge-hiking'
+                   : trail.type === 'cycling' ? 'badge-cycling'
+                   : trail.type === 'swimming' ? 'badge-swimming'
+                   : trail.type === 'skiing' ? 'badge-skiing'
+                   : 'badge-nature';
+  const legLabel = trail.type === 'cycling' ? 'cycle' : 'walk';
+
+  const stopItems = trail.stops.map((s, si) => `
+    <a href="https://www.google.com/maps/dir/?api=1&origin=${homeLat},${homeLon}&destination=${s.lat},${s.lon}&travelmode=transit"
+       target="_blank" class="stop-item${si === 0 ? ' best' : ''}">
+      <div class="stop-icon-sm">${s.icon}</div>
+      <div>
+        <div class="stop-name">${s.name}</div>
+        <div class="stop-meta">
+          <span>${s.type}</span>
+          <span>${fmt(s.distFromHome)} from home</span>
+          <span>${fmt(s.distToTrail)} to trailhead</span>
+          ${s.lines ? `<span class="stop-lines">${s.lines}</span>` : ''}
+        </div>
+      </div>
+    </a>`).join('');
+
+  const transitUrl = `https://www.google.com/maps/dir/?api=1&origin=${homeLat},${homeLon}&destination=${best.lat},${best.lon}&travelmode=transit`;
+  const legUrl = `https://www.google.com/maps/dir/?api=1&origin=${best.lat},${best.lon}&destination=${trail.lat},${trail.lon}&travelmode=walking`;
+  const trailUrl = `https://www.google.com/maps?q=${trail.lat},${trail.lon}`;
+
+  const srcPill = trail.source === 'oda'
+    ? '<span class="source-pill src-oda">Outdooractive</span>'
+    : '<span class="source-pill src-osm">OSM</span>';
+  const diffLabel = trail.difficulty
+    ? `<span class="diff-${trail.difficulty}">● ${trail.difficulty}</span>` : '';
+  const elevLabel = trail.elevGain ? `↑${trail.elevGain}m` : '';
+
+  return `<div class="trail-card" style="animation-delay:${idx * .08}s">
+    <div class="trail-header">
+      <div>
+        <div class="trail-name">${trail.icon} ${trail.name}${srcPill}</div>
+        <div class="trail-sub">${[trail.sub, diffLabel, elevLabel].filter(Boolean).join(' · ')}</div>
+      </div>
+      <span class="type-badge ${badgeClass}">${trail.label}${trail.isLoop ? ' 🔁' : ''}</span>
+    </div>
+
+    <div class="journey-chain">
+      <div class="jnode">
+        <div class="jicon jicon-home">🏠</div>
+        <div class="jlabel">Home</div>
+      </div>
+      <div class="jleg">
+        <div class="jline"></div>
+        <div class="jdist">🚶 ${fmt(best.distFromHome)}</div>
+      </div>
+      <div class="jnode">
+        <div class="jicon jicon-stop">${best.icon}</div>
+        <div class="jlabel">${best.name}</div>
+        <div class="jsub">${best.type}</div>
+      </div>
+      <div class="jleg">
+        <div class="jline"></div>
+        <div class="jdist">${trail.icon} ${fmt(best.distToTrail)}</div>
+      </div>
+      <div class="jnode">
+        <div class="jicon jicon-trail">🏔️</div>
+        <div class="jlabel">Trailhead</div>
+        ${trail.trailDist ? `<div class="jsub">${trail.trailDist}km</div>` : ''}
+      </div>
+    </div>
+
+    <div class="stops-section">
+      <div class="stops-title">🚌 ${trail.stops.length} connecting stop${trail.stops.length !== 1 ? 's' : ''}</div>
+      <div class="stop-list">${stopItems}</div>
+    </div>
+
+    <div class="action-row">
+      <a class="act-btn primary" href="${transitUrl}" target="_blank">🚌 Plan transit</a>
+      <a class="act-btn" href="${legUrl}" target="_blank">🥾 Stop → Trail</a>
+      <a class="act-btn" href="${trailUrl}" target="_blank">🗺️ View on map</a>
+      ${trail.oda_url ? `<a class="act-btn" href="${trail.oda_url}" target="_blank">🌐 Outdooractive</a>` : ''}
+      <button class="act-btn" onclick="toggleLoopPanel(${idx})">🔁 Loop</button>
+      <button class="act-btn" onclick="downloadGPX(${idx})">📥 GPX</button>
+      <button class="act-btn" id="shareBtn-${idx}" onclick="shareTrail(${idx})">🔗 Share</button>
+    </div>
+
+    <div id="loop-${idx}" class="loop-panel">
+      <div class="slider-group">
+        <div class="slider-header">
+          <label>🔁 Loop distance from stop</label>
+          <span id="loopDistVal-${idx}">${trail.type === 'cycling' ? '30km' : '10km'}</span>
+        </div>
+        <input type="range" id="loopDist-${idx}"
+          min="${trail.type === 'cycling' ? 5000 : 1000}"
+          max="${trail.type === 'cycling' ? 100000 : 30000}"
+          step="${trail.type === 'cycling' ? 5000 : 1000}"
+          value="${trail.type === 'cycling' ? 30000 : 10000}"
+          oninput="updateLoopSlider(${idx})">
+      </div>
+      <div style="display:flex;gap:.5rem;margin-top:.75rem;flex-wrap:wrap;align-items:center">
+        <button class="act-btn primary" onclick="doGenerateLoop(${idx})">🔄 Generate</button>
+        <button class="act-btn" onclick="toggleLoopPanel(${idx})">✕</button>
+        <div id="loopResult-${idx}" style="flex:1"></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ── GraphHopper key ───────────────────────────────────────────────────────────
+
+// ── Loop generation ───────────────────────────────────────────────────────────
+const loopResults = {};
+
+async function shareTrail(idx) {
+  const t = currentTrails[idx];
+  const best = t.stops[0];
+  const mapsUrl = `https://www.google.com/maps?q=${t.lat},${t.lon}`;
+  const dist = t.trailDist ? ` · ${t.trailDist}km` : '';
+  const stopLine = best ? `\nNearest stop: ${best.icon} ${best.name} (${fmt(best.distToTrail)} away)` : '';
+  const text = `${t.icon} ${t.name}${dist}\n${t.label}${stopLine}\n${mapsUrl}`;
+  const btn = document.getElementById(`shareBtn-${idx}`);
+
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: t.name, text, url: mapsUrl });
+    } catch {}
+    return;
+  }
+
+  // Fallback: copy to clipboard
+  try {
+    await navigator.clipboard.writeText(text);
+    const orig = btn.textContent;
+    btn.textContent = '✅ Copied!';
+    setTimeout(() => { btn.textContent = orig; }, 2000);
+  } catch {
+    prompt('Copy this trail info:', text);
+  }
+}
+
+function toggleLoopPanel(idx) {
+  const panel = document.getElementById(`loop-${idx}`);
+  panel.classList.toggle('open');
+}
+
+function updateLoopSlider(idx) {
+  const val = parseInt(document.getElementById(`loopDist-${idx}`).value);
+  document.getElementById(`loopDistVal-${idx}`).textContent = fmt(val);
+}
+
+async function doGenerateLoop(idx) {
+  const trail   = currentTrails[idx];
+  const stop    = trail.stops[0];
+  const distM   = parseInt(document.getElementById(`loopDist-${idx}`).value);
+  const resultEl = document.getElementById(`loopResult-${idx}`);
+  const vehicle = trail.type === 'hiking' ? 'foot' : trail.wtType === 'mtb' ? 'mtb' : 'bike';
+  resultEl.innerHTML = '<span style="color:var(--moss);font-size:.88rem">🔄 Generating…</span>';
+
+  try {
+    const r = await fetch('/api/graphhopper', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({lat: stop.lat, lon: stop.lon, distance: distM, vehicle})
+    });
+    const d = await r.json();
+    if (d.message || d.error) throw new Error(d.message || d.error);
+    const path = d.paths?.[0];
+    if (!path) throw new Error('No route returned');
+    loopResults[idx] = path.points.coordinates;
+    const km = (path.distance / 1000).toFixed(1);
+    resultEl.innerHTML = `
+      <span style="color:var(--forest-dark);font-size:.88rem">✅ <strong>${km}km</strong> loop generated</span>
+      <button class="act-btn" style="margin-left:.5rem" onclick="downloadLoopGPX(${idx},'${km}km loop from ${stop.name.replace(/'/g,"\\'")}')">📥 GPX</button>`;
+  } catch(e) {
+    resultEl.innerHTML = `<div class="error" style="font-size:.82rem">⚠️ ${e.message}</div>`;
+  }
+}
+
+function downloadLoopGPX(idx, name) {
+  const coords = loopResults[idx];
+  if (!coords) return;
+  const trkpts = coords.map(([lo, la]) => `    <trkpt lat="${la}" lon="${lo}"></trkpt>`).join('\n');
+  const gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="TrailbyRail" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata><name>${name}</name></metadata>
+  <trk><name>${name}</name><trkseg>\n${trkpts}\n  </trkseg></trk>
+</gpx>`;
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(new Blob([gpx], {type:'application/gpx+xml'})),
+    download: name.replace(/[^a-z0-9]/gi, '_') + '.gpx'
+  });
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+// ── Custom routes ─────────────────────────────────────────────────────────────
+async function fetchCustomRoutes(lat, lon, radiusM) {
+  try {
+    const r = await fetch('/api/custom-routes', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({action:'list', lat, lon, radius_m: radiusM})
+    });
+    const rows = await r.json();
+    return (Array.isArray(rows) ? rows : []).map(row => ({
+      id: `custom_${row.id}`, dbId: row.id,
+      name: row.name, sub: 'My Route',
+      trailDist: row.dist_km ? String(row.dist_km) : null,
+      isLoop: false, difficulty: null, elevGain: null,
+      type: row.activity_type === 'cycling' || row.activity_type === 'mtb' ? 'cycling' : 'hiking',
+      label: row.activity_type === 'mtb' ? 'MTB Route' : row.activity_type === 'cycling' ? 'Cycling Route' : 'Hiking Trail',
+      icon: row.activity_type === 'mtb' ? '🚵' : row.activity_type === 'cycling' ? '🚴' : '🥾',
+      lat: row.lat, lon: row.lon,
+      source: 'custom', wtType: null, oda_url: null
+    }));
+  } catch { return []; }
+}
+
+async function loadMyRoutes() {
+  const listEl = document.getElementById('myRoutesList');
+  try {
+    const r = await fetch('/api/custom-routes', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({action:'list'})
+    });
+    const rows = await r.json();
+    if (!rows.length) {
+      listEl.innerHTML = '<p style="color:var(--moss);font-size:.9rem">No custom routes yet. Upload a GPX to include your own routes in search results.</p>';
+      return;
+    }
+    listEl.innerHTML = rows.map(row => `
+      <div class="route-item">
+        <div class="route-item-info">
+          <div class="route-item-name">${row.name}</div>
+          <div class="route-item-meta">${row.activity_type}${row.dist_km ? ' · ' + row.dist_km + 'km' : ''} · ${row.created_at.split(' ')[0]}</div>
+        </div>
+        <button class="act-btn" style="padding:.4rem .7rem" onclick="downloadCustomGPX(${row.id},'${row.name.replace(/'/g,"\\'")}')">📥</button>
+        <button class="btn-delete" onclick="deleteCustomRoute(${row.id})" title="Delete">🗑️</button>
+      </div>`).join('');
+  } catch(e) {
+    listEl.innerHTML = '<p style="color:#c33;font-size:.85rem">Could not load routes.</p>';
+  }
+}
+
+async function doUploadGPX() {
+  const file   = document.getElementById('gpxFile').files[0];
+  const status = document.getElementById('uploadStatus');
+  if (!file) { status.innerHTML = '<span style="color:#c33">Please select a .gpx file</span>'; return; }
+  status.innerHTML = 'Uploading…';
+  try {
+    const gpxText = await file.text();
+    const name    = document.getElementById('uploadName').value.trim() || file.name.replace(/\.gpx$/i,'');
+    const r = await fetch('/api/upload-gpx', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({gpx: gpxText, name, activity_type: document.getElementById('uploadType').value})
+    });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    status.innerHTML = `<span style="color:var(--moss)">✅ "${d.name}" uploaded (${d.dist_km ? d.dist_km+'km' : 'distance unknown'})</span>`;
+    document.getElementById('uploadName').value = '';
+    document.getElementById('gpxFile').value = '';
+    loadMyRoutes();
+  } catch(e) {
+    status.innerHTML = `<span style="color:#c33">⚠️ ${e.message}</span>`;
+  }
+}
+
+async function downloadCustomGPX(id, name) {
+  const r = await fetch('/api/custom-routes', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({action:'get-gpx', id})
+  });
+  const blob = await r.blob();
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(blob),
+    download: name.replace(/[^a-z0-9]/gi,'_') + '.gpx'
+  });
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+async function deleteCustomRoute(id) {
+  if (!confirm('Delete this route?')) return;
+  await fetch('/api/custom-routes', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({action:'delete', id})
+  });
+  loadMyRoutes();
+}
+
+function toggleUploadForm() {
+  const f = document.getElementById('uploadForm');
+  f.style.display = f.style.display === 'block' ? 'none' : 'block';
+  document.getElementById('uploadStatus').innerHTML = '';
+}
+
+async function getLocation() {
+  const input = document.getElementById('location');
+  const btn = document.getElementById('locationBtn');
+  if (!navigator.geolocation) { input.placeholder = 'Enter your address'; return; }
+  input.placeholder = 'Detecting location…';
+  btn.disabled = true;
+  navigator.geolocation.getCurrentPosition(
+    async pos => {
+      homeLat = pos.coords.latitude; homeLon = pos.coords.longitude;
+      input.value = await reverseGeocode(homeLat, homeLon);
+      btn.disabled = false;
+    },
+    () => { input.placeholder = 'e.g. Amsterdam, Breda, Utrecht…'; btn.disabled = false; },
+    {enableHighAccuracy: false, timeout: 10000, maximumAge: 300000}
+  );
+}
+
+document.getElementById('locationBtn').addEventListener('click', getLocation);
+window.addEventListener('load', () => {
+  getLocation();
+  loadMyRoutes();
+});
+</script>
+</body>
+</html>
