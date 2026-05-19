@@ -313,18 +313,40 @@ def index():
 
 # ── API routes ────────────────────────────────────────────────────────────────
 
+OVERPASS_ENDPOINTS = [
+    'https://overpass-api.de/api/interpreter',
+    'https://overpass.kumi.systems/api/interpreter',
+    'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+]
+
 @app.route('/api/overpass', methods=['POST'])
 def api_overpass():
+    import time
     query = request.json.get('query', '')
-    r = requests.post(
-        'https://overpass-api.de/api/interpreter',
-        data={'data': query},
-        headers=HEADERS,
-        timeout=100,
-    )
-    if not r.ok:
-        return jsonify({'error': f'Overpass error {r.status_code}'}), 502
-    return Response(r.content, content_type='application/json')
+    last_err = None
+    for i, endpoint in enumerate(OVERPASS_ENDPOINTS):
+        try:
+            if i > 0:
+                time.sleep(1.5)   # brief pause before trying mirror
+            r = requests.post(
+                endpoint,
+                data={'data': query},
+                headers=HEADERS,
+                timeout=45,
+            )
+            if r.status_code == 429:
+                last_err = 429
+                continue          # try next mirror
+            if not r.ok:
+                return jsonify({'error': f'Overpass error {r.status_code}'}), 502
+            return Response(r.content, content_type='application/json')
+        except requests.Timeout:
+            return jsonify({'error': 'Overpass error 504'}), 504
+        except Exception as e:
+            last_err = str(e)
+            continue
+    status = 429 if last_err == 429 else 502
+    return jsonify({'error': f'Overpass error {status}'}), status
 
 @app.route('/api/geocode', methods=['POST'])
 def api_geocode():
