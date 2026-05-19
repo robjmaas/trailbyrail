@@ -323,7 +323,7 @@ OVERPASS_ENDPOINTS = [
 # don't both hit the rate limit simultaneously.
 _overpass_lock = threading.Lock()
 _overpass_last_call = [0.0]   # list so the closure can mutate it
-_OVERPASS_MIN_GAP = 0.7       # seconds between outbound requests
+_OVERPASS_MIN_GAP = 1.5       # seconds between outbound requests (enough for 6 parallel)
 
 @app.route('/api/overpass', methods=['POST'])
 def api_overpass():
@@ -339,26 +339,31 @@ def api_overpass():
     for i, endpoint in enumerate(OVERPASS_ENDPOINTS):
         try:
             if i > 0:
-                time.sleep(1.0)   # brief pause before trying next mirror
+                time.sleep(1.5)   # pause before trying next mirror
             r = requests.post(
                 endpoint,
                 data={'data': query},
                 headers=HEADERS,
-                timeout=45,
+                timeout=55,       # generous timeout; Overpass queries declare [timeout:35]
             )
             if r.status_code == 429:
                 last_err = 429
                 continue          # try next mirror
             if not r.ok:
-                return jsonify({'error': f'Overpass error {r.status_code}'}), 502
+                last_err = r.status_code
+                continue          # try next mirror on any error
             return Response(r.content, content_type='application/json')
         except requests.Timeout:
-            return jsonify({'error': 'Overpass error 504'}), 504
+            last_err = 'timeout'
+            continue              # try next mirror on timeout too
         except Exception as e:
             last_err = str(e)
             continue
-    status = 429 if last_err == 429 else 502
-    return jsonify({'error': f'Overpass error {status}'}), status
+    if last_err == 429:
+        return jsonify({'error': 'Overpass error 429'}), 429
+    if last_err == 'timeout':
+        return jsonify({'error': 'Overpass error 504'}), 504
+    return jsonify({'error': f'Overpass error {last_err}'}), 502
 
 @app.route('/api/geocode', methods=['POST'])
 def api_geocode():

@@ -837,7 +837,7 @@ async function fetchStops(lat, lon, radiusM, modes) {
   ].filter(Boolean).join('\n    ');
   if (!lines) return [];
   // out center: gives lat/lon for ways and relations, not just nodes
-  const q = `[out:json][timeout:25];(\n    ${lines}\n  );out center body;`;
+  const q = `[out:json][timeout:35];(\n    ${lines}\n  );out center body;`;
   const data = await overpass(q);
   return data.elements.map(e => {
     // nodes have lat/lon directly; ways/relations have a center object
@@ -950,7 +950,7 @@ async function fetchTrails(lat, lon, radiusM, subtypes) {
     subtypes.includes('nordic')   && `relation["route"="ski"]["piste:type"="nordic"](${bb});\n    way["piste:type"="nordic"](${bb});`,
   ].filter(Boolean).join('\n    ');
   if (!lines) return [];
-  const q = `[out:json][timeout:30][maxsize:16777216];(\n    ${lines}\n  );out center tags 120;`;
+  const q = `[out:json][timeout:35][maxsize:16777216];(\n    ${lines}\n  );out center tags 120;`;
   const data = await overpass(q);
   const seen = new Set();
   return data.elements.map(el => {
@@ -1090,17 +1090,18 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
       homeStops = await fetchStops(homeLat, homeLon, walkToStop, ['train']);
 
       const searchDist  = Math.min(ptJourney, 200000) * 0.7;
-      const trailRadius = Math.max(walkFromStop, 15000);        // at least 15km
-      const stopRadius  = Math.max(walkFromStop + 10000, 20000);// at least 20km
-      const scatterPts  = generateScatterPoints(homeLat, homeLon, searchDist, 5);
+      const trailRadius = Math.max(walkFromStop, 15000);   // at least 15km for trails
+      const stopRadius  = Math.max(walkFromStop, 10000);   // at least 10km for train stops
+      // 3 points (6 Overpass calls) — backend gap 1.5s = ~9s spread, well within limits
+      const scatterPts  = generateScatterPoints(homeLat, homeLon, searchDist, 3);
 
       console.log('[TrailbyRail] scatter at', (searchDist/1000).toFixed(0)+'km,',
         scatterPts.map(p => `(${p.lat.toFixed(2)},${p.lon.toFixed(2)})`).join(' '));
 
       const scatterResults = await Promise.all(scatterPts.map(pt => Promise.all([
         fetchTrails(pt.lat, pt.lon, trailRadius, trailSubtypes),
-        fetchOutdooractive(pt.lat, pt.lon, trailRadius, trailSubtypes),
-        fetchStops(pt.lat, pt.lon, stopRadius, ptModes),
+        fetchOutdooractive(pt.lat, pt.lon, trailRadius, trailSubtypes).catch(() => []),
+        fetchStops(pt.lat, pt.lon, stopRadius, ['train']), // train-only: smaller query
       ])));
 
       osmTrails = []; odaTrails = []; stops = []; customTrails = [];
