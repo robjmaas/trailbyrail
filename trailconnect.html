@@ -987,16 +987,16 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
   }
 
   const destLabel = searchMode === 'destination' ? destInput.value.trim() : '';
+  const isDestMode = searchMode === 'destination';
+  const combinedRadius = isDestMode ? walkFromStop : walkToStop + walkFromStop;
 
   resultsDiv.innerHTML = `<div class="loading">
     <div class="loading-spinner">🔄</div>
-    <div class="loading-msg">${searchMode === 'destination' ? `Finding trails near <strong>${destLabel}</strong>…` : 'Finding trails reachable by public transport…'}</div>
-    <div class="loading-sub">${searchMode === 'destination' ? `≤${fmt(walkToStop)} to departure stop · ≤${fmt(walkFromStop)} from arrival stop to trail` : `Trails within ${fmt(combinedRadius)} of home · bus/tram stop within ${fmt(walkFromStop)} of trail`}</div>
+    <div class="loading-msg">${isDestMode ? `Finding trails near <strong>${destLabel}</strong>…` : 'Finding trails reachable by public transport…'}</div>
+    <div class="loading-sub">${isDestMode ? `≤${fmt(walkToStop)} to departure stop · ≤${fmt(walkFromStop)} from arrival stop to trail` : `Trails within ${fmt(combinedRadius)} of home · bus/tram stop within ${fmt(walkFromStop)} of trail`}</div>
   </div>`;
 
   try {
-    const isDestMode = searchMode === 'destination';
-    const combinedRadius = isDestMode ? walkFromStop : walkToStop + walkFromStop;
     // Near-home: fetch stops across the FULL search area, not just near the front door.
     // Bus networks cover the whole region — we don't need the boarding stop to be
     // near home, only the alighting stop to be near the trail.
