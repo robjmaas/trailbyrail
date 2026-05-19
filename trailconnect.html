@@ -1009,19 +1009,40 @@ async function downloadGPX(idx) {
   }
 }
 
-// Group stops into grid cells of ~gridKm size. Returns centroid per cell.
-function clusterGrid(stops, gridKm) {
+// For each grid cell pick the ONE stop closest to the cell centroid (actual real location).
+function pickRepresentatives(stops, gridKm, maxN) {
   const cells = {};
   for (const s of stops) {
     const row = Math.round(s.lat * 111 / gridKm);
     const col = Math.round(s.lon * 111 * Math.cos(s.lat * Math.PI / 180) / gridKm);
     const key = `${row}:${col}`;
-    if (!cells[key]) cells[key] = { latSum: 0, lonSum: 0, count: 0, distFromHome: s.distFromHome };
-    cells[key].latSum += s.lat; cells[key].lonSum += s.lon; cells[key].count++;
+    if (!cells[key]) cells[key] = [];
+    cells[key].push(s);
   }
-  return Object.values(cells).map(c => ({
-    lat: c.latSum / c.count, lon: c.lonSum / c.count, distFromHome: c.distFromHome,
-  }));
+  return Object.values(cells).map(group => {
+    const clat = group.reduce((a, s) => a + s.lat, 0) / group.length;
+    const clon = group.reduce((a, s) => a + s.lon, 0) / group.length;
+    return group.reduce((best, s) =>
+      dist(clat, clon, s.lat, s.lon) < dist(clat, clon, best.lat, best.lon) ? s : best
+    );
+  }).sort((a, b) => b.distFromHome - a.distFromHome).slice(0, maxN);
+}
+
+// Lightweight scan of train station NODES only (fast for large radii).
+async function fetchTrainStationNodes(lat, lon, radiusM) {
+  const r = Math.min(Math.round(radiusM), 300000);
+  const q = `[out:json][timeout:35][maxsize:16777216];(\n  node["railway"="station"](around:${r},${lat},${lon});\n  node["railway"="halt"](around:${r},${lat},${lon});\n);out tags;`;
+  const data = await overpass(q);
+  return data.elements.map(e => {
+    if (!e.lat || !e.lon) return null;
+    return {
+      id: e.id, lat: e.lat, lon: e.lon,
+      name: e.tags?.name || 'Station',
+      type: 'Train station', icon: '🚂',
+      lines: e.tags?.route_ref || '',
+      distFromHome: dist(lat, lon, e.lat, e.lon),
+    };
+  }).filter(Boolean);
 }
 
 document.getElementById('searchForm').addEventListener('submit', async e => {
@@ -1087,29 +1108,30 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
 
     if (!isDestMode && ptJourney > 0) {
       // ── Station-first search ───────────────────────────────────────────────
-      // 1. Find all train stations within PT journey reach of home
+      // 1. Lightweight scan: find train station NODES within PT journey reach
       const maxReach = Math.min(walkToStop + ptJourney, 250000);
-      const allTrainStops = await fetchStops(homeLat, homeLon, maxReach, ['train']);
+      const allTrainStops = await fetchTrainStationNodes(homeLat, homeLon, maxReach);
+      console.log('[TrailbyRail] train stations found:', allTrainStops.length, 'within', (maxReach/1000).toFixed(0)+'km');
 
-      // Departure stops: close to home
+      // Departure stops: stations close to home
       homeStops = allTrainStops.filter(s => s.distFromHome <= walkToStop * 1.5);
 
-      // Arrival zones: remote stations clustered into ~40km grid cells, farthest first
+      // Arrival candidates: remote stations, pick 1 real station per 30km cell (max 5 zones)
       const remoteStops = allTrainStops.filter(s => s.distFromHome > walkToStop * 2);
-      const zones = clusterGrid(remoteStops, 40)
-        .sort((a, b) => b.distFromHome - a.distFromHome)
-        .slice(0, 3);
+      const repStations = pickRepresentatives(remoteStops, 30, 5);
+      console.log('[TrailbyRail] representative arrival stations:', repStations.map(s => `${s.name} (${(s.distFromHome/1000).toFixed(0)}km)`));
 
       osmTrails = []; odaTrails = []; stops = []; customTrails = [];
       const seenT = new Set(), seenS = new Set();
 
-      // 2. For each zone, search for trails + stops (backend lock serialises Overpass)
-      for (const zone of zones) {
-        const [zOsm, zOda, zStops] = await Promise.all([
-          fetchTrails(zone.lat, zone.lon, walkFromStop, trailSubtypes),
-          fetchOutdooractive(zone.lat, zone.lon, walkFromStop, trailSubtypes),
-          fetchStops(zone.lat, zone.lon, walkFromStop + 5000, ptModes),
-        ]);
+      // 2. Parallel trail+stop search around each real station location
+      const zoneResults = await Promise.all(repStations.map(station => Promise.all([
+        fetchTrails(station.lat, station.lon, walkFromStop, trailSubtypes),
+        fetchOutdooractive(station.lat, station.lon, walkFromStop, trailSubtypes),
+        fetchStops(station.lat, station.lon, walkFromStop + 5000, ptModes),
+      ])));
+
+      for (const [zOsm, zOda, zStops] of zoneResults) {
         for (const t of zOsm) { if (!seenT.has(t.id)) { seenT.add(t.id); osmTrails.push(t); } }
         for (const t of zOda) { if (!seenT.has(t.id)) { seenT.add(t.id); odaTrails.push(t); } }
         for (const s of zStops) { if (!seenS.has(s.id)) { seenS.add(s.id); stops.push(s); } }
@@ -1181,10 +1203,12 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
         <div class="no-results-icon">🏞️</div>
         <h3>No results found</h3>
         <p>${isDestMode
-          ? 'No trails with a nearby PT stop found here. Try increasing the radius or searching a different area.'
+          ? 'No trails with a nearby PT stop found here. Try increasing the Walk from stop radius or searching a different area.'
+          : ptJourney > 0
+          ? `No trails found within ${fmt(walkFromStop)} of a train station in the searched area. Try increasing the "Walk from stop to trail" slider, or use By Destination to pick a specific area (e.g. Veluwe, Ardennes).`
           : isCycling
-          ? 'No cycling trails found near a train station in this area. Trails you could reach without a train are hidden.'
-          : 'No trails that genuinely require public transport found nearby. Try increasing the radius.'
+          ? 'No cycling trails found near a stop in this area.'
+          : 'No trails found near a local stop. Try increasing the radius.'
         }</p>
         ${destTip}
       </div>`;
