@@ -354,7 +354,8 @@ def api_review_add():
 
 # ── Run ───────────────────────────────────────────────────────────────────────
 
+init_db()  # runs on every startup — gunicorn workers included
+
 if __name__ == '__main__':
-    init_db()
     print('🏔️  TrailbyRail\n✅ http://localhost:8080\n')
     app.run(host='0.0.0.0', port=8080, debug=False)
