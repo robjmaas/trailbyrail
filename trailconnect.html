@@ -583,15 +583,17 @@ function setSearchMode(mode) {
   searchMode = mode;
   document.getElementById('modeNearHome').classList.toggle('active', mode === 'home');
   document.getElementById('modeDestination').classList.toggle('active', mode === 'destination');
-  const destGroup = document.getElementById('destinationGroup');
-  const walkToStopGroup = document.getElementById('walkToStopGroup');
-  destGroup.style.display = mode === 'destination' ? '' : 'none';
-  walkToStopGroup.style.display = mode === 'destination' ? 'none' : '';
-  // Update "from stop" label
+  document.getElementById('destinationGroup').style.display = mode === 'destination' ? '' : 'none';
+  // Both sliders visible in both modes — labels change per mode
   const act = document.getElementById('activity').value;
   const cfg = ACTIVITY_CONFIG[act] || ACTIVITY_CONFIG.hiking;
-  document.getElementById('walkFromStopLabel').textContent =
-    mode === 'destination' ? '🏔️ Radius around destination' : cfg.fromStopLabel;
+  if (mode === 'destination') {
+    document.getElementById('walkToStopLabel').textContent  = cfg.toStopLabel.replace('home', 'departure stop');
+    document.getElementById('walkFromStopLabel').textContent = '🏔️ Walk from arrival stop to trail';
+  } else {
+    document.getElementById('walkToStopLabel').textContent  = cfg.toStopLabel;
+    document.getElementById('walkFromStopLabel').textContent = cfg.fromStopLabel;
+  }
 }
 
 function fmtSuggestion(item) {
@@ -964,22 +966,32 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
   resultsDiv.innerHTML = `<div class="loading">
     <div class="loading-spinner">🔄</div>
     <div class="loading-msg">${searchMode === 'destination' ? `Finding trails near <strong>${destLabel}</strong>…` : 'Finding trails reachable by public transport…'}</div>
-    <div class="loading-sub">${searchMode === 'destination' ? `Trails within ${fmt(walkFromStop)} of a PT stop · get there by train` : `Stops within ${fmt(walkToStop)} of home · trails within ${fmt(walkFromStop)} of a stop`}</div>
+    <div class="loading-sub">${searchMode === 'destination' ? `≤${fmt(walkToStop)} to departure stop · ≤${fmt(walkFromStop)} from arrival stop to trail` : `Stops within ${fmt(walkToStop)} of home · trails within ${fmt(walkFromStop)} of a stop`}</div>
   </div>`;
 
   try {
-    const combinedRadius = searchMode === 'destination' ? walkFromStop : walkToStop + walkFromStop;
-    const stopRadius = searchMode === 'destination' ? walkFromStop : walkToStop;
-    const [stops, osmTrails, odaTrails, customTrails] = await Promise.all([
+    const isDestMode = searchMode === 'destination';
+    const combinedRadius = isDestMode ? walkFromStop : walkToStop + walkFromStop;
+    const stopRadius     = isDestMode ? walkFromStop : walkToStop;
+
+    // In destination mode also fetch home stops (departure leg) in parallel
+    const fetchList = [
       fetchStops(searchLat, searchLon, stopRadius, ptModes),
       fetchTrails(searchLat, searchLon, combinedRadius, trailSubtypes),
       fetchOutdooractive(searchLat, searchLon, combinedRadius, trailSubtypes),
       fetchCustomRoutes(searchLat, searchLon, combinedRadius),
-    ]);
+      isDestMode && homeLat ? fetchStops(homeLat, homeLon, walkToStop, ptModes) : Promise.resolve([]),
+    ];
+    const [stops, osmTrails, odaTrails, customTrails, homeStops] = await Promise.all(fetchList);
+
+    // Best departure stop (nearest to home)
+    const departureStop = homeStops.length
+      ? homeStops.sort((a, b) => a.distFromHome - b.distFromHome)[0]
+      : null;
 
     const osmNames = new Set(osmTrails.map(t => t.name.toLowerCase()));
     const trails = [
-      ...customTrails,  // custom routes always shown first
+      ...customTrails,
       ...osmTrails,
       ...odaTrails.filter(t => !osmNames.has(t.name.toLowerCase())),
     ];
@@ -990,7 +1002,7 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
         .filter(s => s.distToTrail <= walkFromStop)
         .sort((a, b) => a.distToTrail - b.distToTrail)
         .slice(0, 4);
-      return {...trail, stops: connecting};
+      return {...trail, stops: connecting, departureStop};
     }).filter(t => t.stops.length > 0)
       .sort((a, b) => a.stops[0].distToTrail - b.stops[0].distToTrail);
 
@@ -1111,14 +1123,25 @@ function renderCard(trail, idx) {
     </div>
 
     <div class="journey-chain">
-      ${isDestMode ? `
+      ${isDestMode ? (() => {
+        const dep = trail.departureStop;
+        return dep ? `
       <div class="jnode">
         <div class="jicon jicon-home">🏠</div>
         <div class="jlabel">Home</div>
       </div>
       <div class="jleg">
         <div class="jline"></div>
-        <div class="jdist">🚂 Long distance</div>
+        <div class="jdist">🚶 ${fmt(dep.distFromHome)}</div>
+      </div>
+      <div class="jnode">
+        <div class="jicon jicon-stop">${dep.icon}</div>
+        <div class="jlabel">${dep.name}</div>
+        <div class="jsub">${dep.type}</div>
+      </div>
+      <div class="jleg">
+        <div class="jline"></div>
+        <div class="jdist">🚂 to destination</div>
       </div>
       <div class="jnode">
         <div class="jicon jicon-stop">${best.icon}</div>
@@ -1134,6 +1157,29 @@ function renderCard(trail, idx) {
         <div class="jlabel">Trailhead</div>
         ${trail.trailDist ? `<div class="jsub">${trail.trailDist}km</div>` : ''}
       </div>` : `
+      <div class="jnode">
+        <div class="jicon jicon-home">🏠</div>
+        <div class="jlabel">Home</div>
+      </div>
+      <div class="jleg">
+        <div class="jline"></div>
+        <div class="jdist">🚂 to destination</div>
+      </div>
+      <div class="jnode">
+        <div class="jicon jicon-stop">${best.icon}</div>
+        <div class="jlabel">${best.name}</div>
+        <div class="jsub">${best.type}</div>
+      </div>
+      <div class="jleg">
+        <div class="jline"></div>
+        <div class="jdist">${trail.icon} ${fmt(best.distToTrail)}</div>
+      </div>
+      <div class="jnode">
+        <div class="jicon jicon-trail">🏔️</div>
+        <div class="jlabel">Trailhead</div>
+        ${trail.trailDist ? `<div class="jsub">${trail.trailDist}km</div>` : ''}
+      </div>`;
+      })() : `
       <div class="jnode">
         <div class="jicon jicon-home">🏠</div>
         <div class="jlabel">Home</div>
