@@ -483,21 +483,86 @@ destInput.addEventListener('keydown', function(e) {
 
 destInput.addEventListener('blur', () => setTimeout(hideACDest, 150));
 
+// Classify OSM class/type combos as outdoor areas and return a human label
+const OUTDOOR_LABELS = {
+  natural: {
+    peak: '⛰️ Mountain Peak', mountain_range: '🏔️ Mountain Range', fell: '🏔️ Fell',
+    hill: '⛰️ Hill', volcano: '🌋 Volcano', cliff: '🪨 Cliff',
+    forest: '🌲 Forest', wood: '🌲 Wood', scrub: '🌿 Scrubland',
+    heath: '🌿 Heath', moor: '🌿 Moorland', grassland: '🌿 Grassland',
+    wetland: '🌿 Wetland', beach: '🏖️ Beach', coastline: '🏖️ Coastline',
+    water: '💧 Lake / Water', bay: '🌊 Bay', cape: '🌊 Cape',
+    cave_entrance: '🕳️ Cave', glacier: '🧊 Glacier', valley: '🏞️ Valley',
+    gorge: '🏞️ Gorge', peninsula: '🗺️ Peninsula', island: '🏝️ Island',
+    islet: '🏝️ Islet', dune: '🏜️ Dune', desert: '🏜️ Desert',
+    spring: '💧 Spring', hot_spring: '♨️ Hot Spring',
+    tree_row: '🌳 Tree Row', tree: '🌳 Tree',
+  },
+  leisure: {
+    nature_reserve: '🌿 Nature Reserve', park: '🌳 Park',
+    garden: '🌸 Garden', national_park: '🏞️ National Park',
+    horse_riding: '🐴 Riding Area', swimming_area: '🏊 Swimming Area',
+    marina: '⛵ Marina',
+  },
+  landuse: {
+    forest: '🌲 Forest', farmland: '🌾 Farmland', meadow: '🌾 Meadow',
+    grass: '🌿 Grassland', village_green: '🌿 Village Green',
+    recreation_ground: '🏃 Recreation Ground', allotments: '🌱 Allotments',
+    orchard: '🍎 Orchard', vineyard: '🍇 Vineyard', plant_nursery: '🌱 Nursery',
+  },
+  boundary: {
+    national_park: '🏞️ National Park', protected_area: '🛡️ Protected Area',
+    forest: '🌲 Forest Area', nature_reserve: '🌿 Nature Reserve',
+    regional_park: '🌳 Regional Park', administrative: null, // skip
+  },
+  place: {
+    island: '🏝️ Island', archipelago: '🏝️ Archipelago',
+    sea: '🌊 Sea', ocean: '🌊 Ocean',
+    region: '🗺️ Region', municipality: null, // skip
+  },
+  waterway: {
+    river: '🏞️ River', stream: '💧 Stream', canal: '⛵ Canal',
+    lake: '💧 Lake',
+  },
+  tourism: {
+    camp_site: '⛺ Campsite', picnic_site: '🧺 Picnic Area',
+    viewpoint: '👁️ Viewpoint', wilderness_hut: '🛖 Wilderness Hut',
+  },
+};
+
+function outdoorLabel(cls, type) {
+  return OUTDOOR_LABELS[cls]?.[type] ?? null;
+}
+
 async function fetchACDest(q) {
   try {
-    const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=6&addressdetails=1`, {headers:{'Accept-Language':'en'}});
+    // Fetch a generous set and then filter/rank outdoor-first
+    const r = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=15&addressdetails=1`,
+      {headers: {'Accept-Language': 'en'}}
+    );
     const data = await r.json();
-    renderACDest(data);
+    // Separate outdoor-tagged from rest
+    const outdoor = data.filter(i => outdoorLabel(i.class, i.type) !== null &&
+                                     outdoorLabel(i.class, i.type) !== undefined);
+    // Fallback: if we got outdoor hits, show only those; otherwise show all non-street results
+    const fallback = data.filter(i => !['highway', 'amenity', 'shop', 'office', 'building'].includes(i.class));
+    renderACDest(outdoor.length ? outdoor.slice(0, 6) : fallback.slice(0, 6));
   } catch { hideACDest(); }
 }
 
 function renderACDest(items) {
   if (!items.length) { hideACDest(); return; }
   acDropdownDest.innerHTML = items.map(item => {
-    const {main, sub} = fmtSuggestion(item);
-    return `<div class="ac-item" data-lat="${item.lat}" data-lon="${item.lon}" data-name="${esc(main + (sub ? ', ' + sub.split(',')[0] : ''))}">
-      <div class="ac-item-main">${main}</div>
-      ${sub ? `<div class="ac-item-sub">${sub}</div>` : ''}
+    const label = outdoorLabel(item.class, item.type);
+    const parts = item.display_name.split(',').map(s => s.trim());
+    const name  = parts[0];
+    // Build a short location string: skip duplicates of the name, take up to 2 parts
+    const loc   = parts.slice(1).filter(p => p !== name).slice(0, 2).join(', ');
+    const safeLabel = label ? `<span style="font-size:.72rem;background:#e8f5e9;color:#2e7d32;border-radius:20px;padding:.1rem .45rem;margin-right:.35rem;font-weight:700">${label}</span>` : '';
+    return `<div class="ac-item" data-lat="${item.lat}" data-lon="${item.lon}" data-name="${esc(name + (loc ? ', ' + loc.split(',')[0] : ''))}">
+      <div class="ac-item-main">${name}</div>
+      <div class="ac-item-sub">${safeLabel}${loc}</div>
     </div>`;
   }).join('');
   acDropdownDest.querySelectorAll('.ac-item').forEach(el => el.addEventListener('mousedown', e => { e.preventDefault(); pickDestItem(el); }));
