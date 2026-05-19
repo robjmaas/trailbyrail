@@ -3,6 +3,8 @@ import os, sqlite3, math, json
 import xml.etree.ElementTree as ET
 import requests, stripe
 from flask import Flask, request, jsonify, send_from_directory, Response, redirect
+from werkzeug.security import generate_password_hash, check_password_hash
+import secrets
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH  = os.environ.get('DB_PATH', os.path.join(BASE_DIR, 'trailbytrail.db'))
@@ -67,6 +69,36 @@ def init_db():
         rating     INTEGER NOT NULL CHECK(rating BETWEEN 1 AND 5),
         comment    TEXT,
         ip         TEXT,
+        user_id    INTEGER,
+        created_at TEXT    DEFAULT (datetime('now'))
+    )''')
+    db.execute('''CREATE TABLE IF NOT EXISTS users (
+        id                INTEGER PRIMARY KEY AUTOINCREMENT,
+        email             TEXT    NOT NULL UNIQUE,
+        password_hash     TEXT    NOT NULL,
+        is_pro            INTEGER DEFAULT 0,
+        stripe_customer_id TEXT,
+        created_at        TEXT    DEFAULT (datetime('now'))
+    )''')
+    db.execute('''CREATE TABLE IF NOT EXISTS user_sessions (
+        token      TEXT    PRIMARY KEY,
+        user_id    INTEGER NOT NULL REFERENCES users(id),
+        created_at TEXT    DEFAULT (datetime('now'))
+    )''')
+    db.execute('''CREATE TABLE IF NOT EXISTS user_done_trails (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id    INTEGER NOT NULL REFERENCES users(id),
+        trail_name TEXT    NOT NULL,
+        trail_lat  REAL,
+        trail_lon  REAL,
+        done_at    TEXT    DEFAULT (datetime('now')),
+        UNIQUE(user_id, trail_name)
+    )''')
+    db.execute('''CREATE TABLE IF NOT EXISTS user_saved_searches (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id    INTEGER NOT NULL REFERENCES users(id),
+        label      TEXT    NOT NULL,
+        data       TEXT    NOT NULL,
         created_at TEXT    DEFAULT (datetime('now'))
     )''')
     db.commit()
@@ -121,15 +153,176 @@ def proxy(url, *, timeout=30, content_type='application/json', disposition=None)
         headers['Content-Disposition'] = disposition
     return Response(r.content, headers=headers)
 
+# ── Auth helper ───────────────────────────────────────────────────────────────
+
+def get_current_user():
+    token = request.cookies.get('session_token')
+    if not token:
+        return None
+    db = get_db()
+    row = db.execute(
+        'SELECT u.* FROM users u JOIN user_sessions s ON s.user_id=u.id WHERE s.token=?', (token,)
+    ).fetchone()
+    db.close()
+    return dict(row) if row else None
+
+# ── Auth endpoints ────────────────────────────────────────────────────────────
+
+@app.route('/api/auth/register', methods=['POST'])
+def api_auth_register():
+    data     = request.json or {}
+    email    = data.get('email', '').strip().lower()
+    password = data.get('password', '')
+    if '@' not in email:
+        return jsonify({'error': 'Invalid email'}), 400
+    if len(password) < 8:
+        return jsonify({'error': 'Password must be at least 8 characters'}), 400
+    db = get_db()
+    if db.execute('SELECT 1 FROM users WHERE email=?', (email,)).fetchone():
+        db.close()
+        return jsonify({'error': 'Email already registered'}), 409
+    pw_hash = generate_password_hash(password)
+    cur = db.execute('INSERT INTO users (email, password_hash) VALUES (?,?)', (email, pw_hash))
+    user_id = cur.lastrowid
+    token = secrets.token_hex(32)
+    db.execute('INSERT INTO user_sessions (token, user_id) VALUES (?,?)', (token, user_id))
+    db.commit(); db.close()
+    resp = jsonify({'ok': True, 'email': email, 'id': user_id})
+    resp.set_cookie('session_token', token, httponly=True, samesite='Lax', max_age=30*24*3600)
+    return resp
+
+@app.route('/api/auth/login', methods=['POST'])
+def api_auth_login():
+    data     = request.json or {}
+    email    = data.get('email', '').strip().lower()
+    password = data.get('password', '')
+    db = get_db()
+    row = db.execute('SELECT * FROM users WHERE email=?', (email,)).fetchone()
+    if not row or not check_password_hash(row['password_hash'], password):
+        db.close()
+        return jsonify({'error': 'Invalid email or password'}), 401
+    token = secrets.token_hex(32)
+    db.execute('INSERT INTO user_sessions (token, user_id) VALUES (?,?)', (token, row['id']))
+    db.commit(); db.close()
+    resp = jsonify({'ok': True, 'email': row['email'], 'id': row['id'], 'is_pro': row['is_pro']})
+    resp.set_cookie('session_token', token, httponly=True, samesite='Lax', max_age=30*24*3600)
+    return resp
+
+@app.route('/api/auth/logout', methods=['POST'])
+def api_auth_logout():
+    token = request.cookies.get('session_token')
+    if token:
+        db = get_db()
+        db.execute('DELETE FROM user_sessions WHERE token=?', (token,))
+        db.commit(); db.close()
+    resp = jsonify({'ok': True})
+    resp.delete_cookie('session_token')
+    return resp
+
+@app.route('/api/auth/me', methods=['GET'])
+def api_auth_me():
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Not authenticated'}), 401
+    return jsonify({'id': user['id'], 'email': user['email'], 'is_pro': user['is_pro']})
+
+# ── Done trails endpoints ─────────────────────────────────────────────────────
+
+@app.route('/api/done-trails', methods=['GET'])
+def api_done_trails_get():
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Not authenticated'}), 401
+    db = get_db()
+    rows = db.execute(
+        'SELECT trail_name, done_at FROM user_done_trails WHERE user_id=? ORDER BY done_at DESC',
+        (user['id'],)
+    ).fetchall()
+    db.close()
+    return jsonify([dict(r) for r in rows])
+
+@app.route('/api/done-trails', methods=['POST'])
+def api_done_trails_post():
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Not authenticated'}), 401
+    data       = request.json or {}
+    trail_name = data.get('trail_name', '').strip()
+    action     = data.get('action', 'add')
+    if not trail_name:
+        return jsonify({'error': 'trail_name required'}), 400
+    db = get_db()
+    if action == 'remove':
+        db.execute('DELETE FROM user_done_trails WHERE user_id=? AND trail_name=?',
+                   (user['id'], trail_name))
+    else:
+        trail_lat = data.get('trail_lat')
+        trail_lon = data.get('trail_lon')
+        db.execute(
+            'INSERT OR IGNORE INTO user_done_trails (user_id, trail_name, trail_lat, trail_lon) VALUES (?,?,?,?)',
+            (user['id'], trail_name, trail_lat, trail_lon)
+        )
+    db.commit(); db.close()
+    return jsonify({'ok': True})
+
+# ── Saved searches endpoints ──────────────────────────────────────────────────
+
+@app.route('/api/saved-searches', methods=['GET'])
+def api_saved_searches_get():
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Not authenticated'}), 401
+    db = get_db()
+    rows = db.execute(
+        'SELECT id, label, data, created_at FROM user_saved_searches WHERE user_id=? ORDER BY created_at DESC',
+        (user['id'],)
+    ).fetchall()
+    db.close()
+    return jsonify([dict(r) for r in rows])
+
+@app.route('/api/saved-searches', methods=['POST'])
+def api_saved_searches_post():
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Not authenticated'}), 401
+    data   = request.json or {}
+    action = data.get('action', 'save')
+    db = get_db()
+    if action == 'delete':
+        db.execute('DELETE FROM user_saved_searches WHERE id=? AND user_id=?',
+                   (data.get('id'), user['id']))
+    else:
+        label = data.get('label', '').strip()
+        sdata = data.get('data', '')
+        if not label:
+            db.close()
+            return jsonify({'error': 'label required'}), 400
+        count = db.execute(
+            'SELECT COUNT(*) FROM user_saved_searches WHERE user_id=?', (user['id'],)
+        ).fetchone()[0]
+        if count >= 10:
+            db.close()
+            return jsonify({'error': 'Max 10 saved searches'}), 400
+        db.execute(
+            'INSERT INTO user_saved_searches (user_id, label, data) VALUES (?,?,?)',
+            (user['id'], label, sdata if isinstance(sdata, str) else json.dumps(sdata))
+        )
+    db.commit(); db.close()
+    return jsonify({'ok': True})
+
 # ── Search gate ───────────────────────────────────────────────────────────────
 
 @app.route('/api/search-gate', methods=['POST'])
 def api_search_gate():
     if cfg('PAYWALL_ENABLED') != '1':
         return jsonify({'ok': True, 'used': 0, 'limit': FREE_LIMIT, 'pro': True})
+    # Check logged-in user pro status first
+    user = get_current_user()
+    if user and user.get('is_pro'):
+        return jsonify({'ok': True, 'used': 0, 'limit': FREE_LIMIT, 'pro': True})
     ip = client_ip()
     db = get_db()
-    # Pro users have unlimited searches
+    # Pro users have unlimited searches (IP fallback)
     if db.execute('SELECT 1 FROM pro_ips WHERE ip=?', (ip,)).fetchone():
         db.close()
         return jsonify({'ok': True, 'used': 0, 'limit': FREE_LIMIT, 'pro': True})
@@ -173,6 +366,10 @@ def payment_success():
             ip = session.client_reference_id or client_ip()
             db = get_db()
             db.execute('INSERT OR REPLACE INTO pro_ips (ip, stripe_session) VALUES (?,?)', (ip, session_id))
+            # Also upgrade the logged-in user account
+            user = get_current_user()
+            if user:
+                db.execute('UPDATE users SET is_pro=1 WHERE id=?', (user['id'],))
             db.commit(); db.close()
     except Exception:
         pass
@@ -352,10 +549,12 @@ def api_review_add():
     comment    = data.get('comment', '').strip()
     if not trail_id or not 1 <= rating <= 5:
         return jsonify({'error': 'Invalid data'}), 400
+    user = get_current_user()
+    user_id = user['id'] if user else None
     db = get_db()
     cur = db.execute(
-        'INSERT INTO reviews (trail_id, trail_name, rating, comment, ip) VALUES (?,?,?,?,?)',
-        (trail_id, trail_name, rating, comment, client_ip())
+        'INSERT INTO reviews (trail_id, trail_name, rating, comment, ip, user_id) VALUES (?,?,?,?,?,?)',
+        (trail_id, trail_name, rating, comment, client_ip(), user_id)
     )
     db.commit()
     db.close()

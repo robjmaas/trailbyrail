@@ -153,6 +153,27 @@ details.api-settings[open] summary{margin-bottom:.85rem}
 .api-key-row{display:flex;flex-direction:column;gap:.4rem}
 .api-key-row small{font-size:.78rem;color:var(--moss)}
 .api-key-row a{color:var(--moss)}
+/* ── Auth modal ── */
+.auth-overlay{position:fixed;inset:0;background:rgba(20,40,20,.7);z-index:999;display:flex;align-items:center;justify-content:center;animation:fadeIn .3s}
+.auth-box{background:#fff;border-radius:20px;padding:2.5rem 2rem;max-width:380px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.auth-box h2{font-family:'Righteous',cursive;font-size:1.6rem;color:var(--forest-dark);margin-bottom:.35rem}
+.auth-box p{color:var(--forest-med);font-size:.9rem;margin-bottom:1.25rem}
+.auth-field{width:100%;padding:.75rem 1rem;border:2px solid var(--moss);border-radius:10px;font-size:.95rem;font-family:'Public Sans',sans-serif;margin-bottom:.75rem;background:var(--cloud)}
+.auth-field:focus{outline:none;border-color:var(--sunrise)}
+.auth-submit{display:block;width:100%;background:linear-gradient(135deg,var(--moss),var(--forest-med));color:#fff;padding:.85rem 2rem;border-radius:50px;font-weight:600;font-size:1rem;border:none;cursor:pointer;margin-bottom:.75rem}
+.auth-submit:hover{opacity:.9}
+.auth-error{color:#c33;font-size:.85rem;margin-bottom:.5rem;min-height:1.2em}
+.auth-toggle{font-size:.85rem;color:var(--moss);cursor:pointer;background:none;border:none;text-decoration:underline}
+.auth-dismiss{font-size:.82rem;color:var(--moss);cursor:pointer;background:none;border:none;text-decoration:underline;margin-top:.35rem;display:block}
+/* ── Auth bar ── */
+.auth-bar{display:flex;justify-content:center;align-items:center;gap:.6rem;margin-top:.75rem;font-size:.83rem}
+.auth-bar-btn{padding:.3rem .85rem;border:1.5px solid rgba(255,255,255,.45);background:rgba(255,255,255,.1);color:#fff;border-radius:20px;font-size:.8rem;font-weight:600;font-family:'Public Sans',sans-serif;cursor:pointer;transition:all .2s}
+.auth-bar-btn:hover{background:rgba(255,255,255,.22);border-color:rgba(255,255,255,.7)}
+.auth-bar-user{color:rgba(255,255,255,.85);font-size:.82rem}
+/* ── Sync hint banner ── */
+.sync-hint{display:flex;align-items:center;gap:.6rem;padding:.55rem 1rem;background:rgba(58,125,82,.18);border:1px solid rgba(58,125,82,.35);border-radius:10px;font-size:.82rem;color:var(--forest-dark);margin-top:.5rem;animation:fadeIn .3s}
+.sync-hint button{background:none;border:none;cursor:pointer;font-size:.9rem;opacity:.5;margin-left:auto;flex-shrink:0}
+.sync-hint button:hover{opacity:1}
 .deco{position:fixed;pointer-events:none;z-index:0}
 .deco-1{top:12%;left:2%;font-size:9rem;opacity:.06;animation:sway 6s ease-in-out infinite}
 .deco-2{bottom:18%;right:3%;font-size:12rem;opacity:.05;animation:sway 7s ease-in-out infinite 1s}
@@ -225,7 +246,26 @@ details.api-settings[open] summary{margin-bottom:.85rem}
       <span class="slogan-main">Discover trails — <span class="slogan-highlight">no car needed</span></span>
       <span class="slogan-sub">Find hiking, cycling &amp; outdoor spots reachable by public transport</span>
     </div>
+    <div class="auth-bar" id="authBar">
+      <button class="auth-bar-btn" onclick="showAuthModal('login')">Login</button>
+      <button class="auth-bar-btn" onclick="showAuthModal('register')">Register</button>
+    </div>
   </header>
+
+  <!-- Auth modal -->
+  <div id="authModal" style="display:none" class="auth-overlay" onclick="if(event.target===this)closeAuthModal()">
+    <div class="auth-box">
+      <div style="font-size:2rem;margin-bottom:.5rem" id="authModalIcon">👤</div>
+      <h2 id="authModalTitle">Log in</h2>
+      <p id="authModalSub">Sync done trails &amp; saved searches across devices</p>
+      <div class="auth-error" id="authError"></div>
+      <input class="auth-field" type="email" id="authEmail" placeholder="Email address" autocomplete="email">
+      <input class="auth-field" type="password" id="authPassword" placeholder="Password (min 8 chars)" autocomplete="current-password">
+      <button class="auth-submit" id="authSubmitBtn" onclick="submitAuth()">Log in</button>
+      <button class="auth-toggle" id="authToggleBtn" onclick="toggleAuthView()">No account yet? Register</button>
+      <button class="auth-dismiss" onclick="closeAuthModal()">Cancel</button>
+    </div>
+  </div>
 
   <div class="search-card">
     <form class="search-form" id="searchForm">
@@ -334,6 +374,7 @@ let doneTrails = new Set(JSON.parse(localStorage.getItem('doneTrails') || '[]'))
 let reviewsLoaded = {};
 let reviewRatings = {};
 let lastSearchParams = null;
+let currentUser = null; // {id, email, is_pro}
 
 // Autocomplete
 const locInput = document.getElementById('location');
@@ -1218,9 +1259,10 @@ async function getLocation() {
 }
 
 document.getElementById('locationBtn').addEventListener('click', getLocation);
-window.addEventListener('load', () => {
+window.addEventListener('load', async () => {
   getLocation();
   loadMyRoutes();
+  await restoreAuthSession();
   renderSavedSearchChips();
   checkHashAndAutoSearch();
 });
@@ -1297,7 +1339,8 @@ function toggleDone(idx) {
   const t = currentTrails[idx];
   const btn = document.getElementById(`doneBtn-${idx}`);
   const card = document.getElementById(`card-${idx}`);
-  if (doneTrails.has(t.name)) {
+  const removing = doneTrails.has(t.name);
+  if (removing) {
     doneTrails.delete(t.name);
     btn.textContent = '🏅 Done';
     btn.classList.remove('done-active');
@@ -1310,6 +1353,14 @@ function toggleDone(idx) {
   }
   saveDoneTrails();
   applyFilters();
+  if (currentUser) {
+    fetch('/api/done-trails', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({trail_name: t.name, trail_lat: t.lat, trail_lon: t.lon, action: removing ? 'remove' : 'add'})
+    }).catch(() => {});
+  } else {
+    showSyncHint();
+  }
 }
 
 // ── Reviews ───────────────────────────────────────────────────────────────────
@@ -1398,6 +1449,14 @@ function saveCurrentSearch() {
   searches.unshift(entry);
   localStorage.setItem('savedSearches', JSON.stringify(searches.slice(0, 5)));
   renderSavedSearchChips();
+  if (currentUser) {
+    fetch('/api/saved-searches', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({action:'save', label: `${location} · ${activity}`, data: JSON.stringify(entry)})
+    }).catch(() => {});
+  } else {
+    showSyncHint();
+  }
 }
 
 function renderSavedSearchChips() {
@@ -1516,6 +1575,147 @@ function checkHashAndAutoSearch() {
     }
     document.getElementById('searchForm').dispatchEvent(new Event('submit'));
   } catch { /* ignore malformed hash */ }
+}
+
+// ── Auth UI ───────────────────────────────────────────────────────────────────
+
+let authMode = 'login'; // 'login' | 'register'
+
+function showAuthModal(mode) {
+  authMode = mode || 'login';
+  updateAuthModalView();
+  document.getElementById('authModal').style.display = 'flex';
+  document.getElementById('authEmail').focus();
+  document.getElementById('authError').textContent = '';
+}
+
+function closeAuthModal() {
+  document.getElementById('authModal').style.display = 'none';
+}
+
+function toggleAuthView() {
+  authMode = authMode === 'login' ? 'register' : 'login';
+  updateAuthModalView();
+  document.getElementById('authError').textContent = '';
+}
+
+function updateAuthModalView() {
+  const isLogin = authMode === 'login';
+  document.getElementById('authModalTitle').textContent = isLogin ? 'Log in' : 'Create account';
+  document.getElementById('authModalSub').textContent = isLogin
+    ? 'Sync done trails & saved searches across devices'
+    : 'Free account — sync your progress across devices';
+  document.getElementById('authSubmitBtn').textContent = isLogin ? 'Log in' : 'Create account';
+  document.getElementById('authToggleBtn').textContent = isLogin
+    ? 'No account yet? Register'
+    : 'Already have an account? Log in';
+  document.getElementById('authPassword').autocomplete = isLogin ? 'current-password' : 'new-password';
+}
+
+async function submitAuth() {
+  const email    = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPassword').value;
+  const errorEl  = document.getElementById('authError');
+  const btn      = document.getElementById('authSubmitBtn');
+  errorEl.textContent = '';
+  btn.disabled = true;
+  btn.textContent = '…';
+  try {
+    const endpoint = authMode === 'login' ? '/api/auth/login' : '/api/auth/register';
+    const r = await fetch(endpoint, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({email, password})
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Something went wrong');
+    currentUser = {id: d.id, email: d.email, is_pro: d.is_pro || 0};
+    updateAuthBar();
+    closeAuthModal();
+    await syncLocalDataToServer();
+    await loadServerDoneTrails();
+  } catch(e) {
+    errorEl.textContent = e.message;
+  } finally {
+    btn.disabled = false;
+    updateAuthModalView();
+  }
+}
+
+async function doLogout() {
+  await fetch('/api/auth/logout', {method:'POST'}).catch(() => {});
+  currentUser = null;
+  updateAuthBar();
+}
+
+function updateAuthBar() {
+  const bar = document.getElementById('authBar');
+  if (!bar) return;
+  if (currentUser) {
+    bar.innerHTML = `
+      <span class="auth-bar-user">👤 ${currentUser.email}</span>
+      <button class="auth-bar-btn" onclick="doLogout()">Logout</button>`;
+  } else {
+    bar.innerHTML = `
+      <button class="auth-bar-btn" onclick="showAuthModal('login')">Login</button>
+      <button class="auth-bar-btn" onclick="showAuthModal('register')">Register</button>`;
+  }
+}
+
+async function restoreAuthSession() {
+  try {
+    const r = await fetch('/api/auth/me');
+    if (!r.ok) return;
+    const d = await r.json();
+    currentUser = {id: d.id, email: d.email, is_pro: d.is_pro};
+    updateAuthBar();
+    await loadServerDoneTrails();
+  } catch { /* not logged in */ }
+}
+
+async function loadServerDoneTrails() {
+  if (!currentUser) return;
+  try {
+    const r = await fetch('/api/done-trails');
+    if (!r.ok) return;
+    const rows = await r.json();
+    rows.forEach(row => doneTrails.add(row.trail_name));
+    saveDoneTrails();
+  } catch { /* ignore */ }
+}
+
+async function syncLocalDataToServer() {
+  if (!currentUser) return;
+  // Sync done trails
+  const localDone = [...doneTrails];
+  for (const name of localDone) {
+    fetch('/api/done-trails', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({trail_name: name, action: 'add'})
+    }).catch(() => {});
+  }
+  // Sync saved searches
+  const searches = getSavedSearches();
+  for (const s of searches) {
+    fetch('/api/saved-searches', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({action:'save', label: `${s.location} · ${s.activity}`, data: JSON.stringify(s)})
+    }).catch(() => {});
+  }
+}
+
+// ── Sync hint ─────────────────────────────────────────────────────────────────
+let syncHintShown = false;
+function showSyncHint() {
+  if (syncHintShown) return;
+  syncHintShown = true;
+  const row = document.getElementById('savedSearchesRow');
+  if (!row) return;
+  const hint = document.createElement('div');
+  hint.className = 'sync-hint';
+  hint.id = 'syncHint';
+  hint.innerHTML = `💡 Log in to sync across devices
+    <button onclick="document.getElementById('syncHint').remove();syncHintShown=false" title="Dismiss">✕</button>`;
+  row.parentNode.insertBefore(hint, row.nextSibling);
 }
 </script>
 </body>
