@@ -53,7 +53,9 @@ input[type=text]:focus,select:focus{outline:none;border-color:var(--sunrise);bac
 .form-row{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem}
 .slider-group{display:flex;flex-direction:column;gap:.65rem}
 .slider-header{display:flex;justify-content:space-between;align-items:center}
-.slider-val{font-size:1rem;font-weight:700;color:var(--sunrise);background:var(--cloud);padding:.3rem .75rem;border-radius:8px;border:2px solid var(--trail-tan);min-width:60px;text-align:center}
+.slider-val{font-size:1rem;font-weight:700;color:var(--sunrise);background:var(--cloud);padding:.3rem .75rem;border-radius:8px;border:2px solid var(--trail-tan);min-width:60px;text-align:center;cursor:pointer;transition:border-color .2s}
+.slider-val:hover{border-color:var(--sunrise)}
+.slider-val-input{font-size:1rem;font-weight:700;color:var(--sunrise);background:var(--cloud);padding:.3rem .75rem;border-radius:8px;border:2px solid var(--sunrise);min-width:60px;width:80px;text-align:center;outline:none;font-family:'Public Sans',sans-serif}
 input[type=range]{width:100%;height:6px;border-radius:3px;outline:none;border:none;cursor:pointer;-webkit-appearance:none;padding:0;background:linear-gradient(to right,var(--moss) 0%,var(--moss) var(--fill,20%),#dde8e3 var(--fill,20%),#dde8e3 100%)}
 input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:var(--forest-dark);border:3px solid var(--trail-tan);cursor:pointer;box-shadow:0 2px 6px var(--shadow)}
 .slider-ticks{display:flex;justify-content:space-between;font-size:.7rem;color:var(--moss);opacity:.8}
@@ -320,8 +322,8 @@ details.api-settings[open] summary{margin-bottom:.85rem}
           <label id="walkToStopLabel">🔍 Search radius from home</label>
           <span class="slider-val" id="walkToStopVal">5km</span>
         </div>
-        <input type="range" id="walkToStop" min="500" max="10000" step="500" value="5000">
-        <div class="slider-ticks" id="walkToStopTicks"><span>500m</span><span>5km</span><span>10km</span><span>15km</span><span>20km</span></div>
+        <input type="range" id="walkToStop" min="500" max="100000" step="500" value="5000">
+        <div class="slider-ticks" id="walkToStopTicks"><span>500m</span><span>25km</span><span>50km</span><span>75km</span><span>100km</span></div>
       </div>
 
       <div class="slider-group">
@@ -329,8 +331,8 @@ details.api-settings[open] summary{margin-bottom:.85rem}
           <label id="walkFromStopLabel">🏔️ Walk from stop to trailhead</label>
           <span class="slider-val" id="walkFromStopVal">5km</span>
         </div>
-        <input type="range" id="walkFromStop" min="500" max="30000" step="500" value="5000">
-        <div class="slider-ticks" id="walkFromStopTicks"><span>500m</span><span>8km</span><span>15km</span><span>22km</span><span>30km</span></div>
+        <input type="range" id="walkFromStop" min="500" max="50000" step="500" value="5000">
+        <div class="slider-ticks" id="walkFromStopTicks"><span>500m</span><span>13km</span><span>25km</span><span>37km</span><span>50km</span></div>
       </div>
 
       <div style="display:flex;gap:.75rem;align-items:stretch">
@@ -624,11 +626,48 @@ function fmt(m) {
 }
 
 function updateSlider(id, valId) {
-  const el = document.getElementById(id);
+  const el  = document.getElementById(id);
   const val = parseInt(el.value);
-  document.getElementById(valId).textContent = fmt(val);
-  const pct = ((val - el.min) / (el.max - el.min)) * 100;
+  const badge = document.getElementById(valId);
+  if (badge) badge.textContent = fmt(val);
+  // Extend slider max if value exceeds it (from manual input)
+  if (val > parseInt(el.max)) el.max = val;
+  const pct = Math.min(100, ((val - el.min) / (el.max - el.min)) * 100);
   el.style.setProperty('--fill', pct + '%');
+}
+
+function makeSliderEditable(sliderId, valId) {
+  const badge  = document.getElementById(valId);
+  const slider = document.getElementById(sliderId);
+  badge.title  = 'Click to type a value';
+
+  badge.addEventListener('click', () => {
+    const input = document.createElement('input');
+    input.type      = 'text';
+    input.className = 'slider-val-input';
+    input.value     = Math.round(parseInt(slider.value) / 1000); // show in km
+    badge.replaceWith(input);
+    input.select();
+
+    function commit() {
+      const km  = parseFloat(input.value.replace(/[^0-9.]/g, '')) || 1;
+      const m   = Math.round(km * 1000);
+      slider.value = m;
+      if (m > parseInt(slider.max)) slider.max = m;
+      const newBadge = document.createElement('span');
+      newBadge.className = 'slider-val';
+      newBadge.id        = valId;
+      input.replaceWith(newBadge);
+      updateSlider(sliderId, valId);
+      makeSliderEditable(sliderId, valId); // re-attach listener
+    }
+
+    input.addEventListener('blur',  commit);
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); commit(); }
+      if (e.key === 'Escape') { input.replaceWith(badge); makeSliderEditable(sliderId, valId); }
+    });
+  });
 }
 
 const ACTIVITY_CONFIG = {
@@ -699,6 +738,8 @@ document.getElementById('walkToStop').addEventListener('input',   () => updateSl
 document.getElementById('walkFromStop').addEventListener('input', () => updateSlider('walkFromStop', 'walkFromStopVal'));
 setSliders(document.getElementById('activity').value);
 updateTrailTypeChips(document.getElementById('activity').value);
+makeSliderEditable('walkToStop',   'walkToStopVal');
+makeSliderEditable('walkFromStop', 'walkFromStopVal');
 
 function dist(lat1, lon1, lat2, lon2) {
   const R = 6371000, dl = (lat2-lat1)*Math.PI/180, do_ = (lon2-lon1)*Math.PI/180;
