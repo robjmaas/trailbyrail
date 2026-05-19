@@ -1011,18 +1011,27 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
       ...odaTrails.filter(t => !osmNames.has(t.name.toLowerCase())),
     ];
 
+    const isCycling = activity === 'cycling';
+
     const results = trails.map(trail => {
-      const connecting = stops
+      let connecting = stops
         .map(s => ({...s, distToTrail: dist(trail.lat, trail.lon, s.lat, s.lon)}))
-        .filter(s => s.distToTrail <= walkFromStop)
-        .sort((a, b) => a.distToTrail - b.distToTrail)
-        .slice(0, 4);
+        .filter(s => s.distToTrail <= walkFromStop);
+
+      // Cycling: only train stations make sense — you board with your bike,
+      // the train covers the real distance, you cycle from the arrival station.
+      if (isCycling) {
+        const trainOnly = connecting.filter(s => s.icon === '🚂');
+        if (trainOnly.length) connecting = trainOnly;
+      }
+
+      connecting = connecting.sort((a, b) => a.distToTrail - b.distToTrail).slice(0, 4);
       return {...trail, stops: connecting, departureStop};
     }).filter(t => {
       if (!t.stops.length) return false;
-      // Quality filter (near-home mode only): skip trails where PT adds no value.
-      // If the trail is closer to home than the user's post-stop range, they'd
-      // just go directly — no train needed.
+      // Quality filter (near-home mode only): skip trails reachable without PT.
+      // If the direct home→trail distance is less than the post-stop range,
+      // there's no reason to use public transport.
       if (!isDestMode) {
         const directDist = dist(homeLat, homeLon, t.lat, t.lon);
         if (directDist < walkFromStop * 0.8) return false;
@@ -1034,18 +1043,22 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
     btn.disabled = false;
 
     if (!results.length) {
-      const activity = document.getElementById('activity').value;
       const destTip = !isDestMode
-        ? `<p style="margin-top:.75rem;font-size:.9rem">Looking for trails further away by train?<br>
-           <button class="act-btn" style="margin-top:.5rem" onclick="setSearchMode('destination');document.getElementById('modeDestination').scrollIntoView({behavior:'smooth'})">
-             🗺️ Switch to By Destination
-           </button></p>` : '';
+        ? `<p style="margin-top:.75rem;font-size:.9rem">${isCycling
+            ? 'Cycling day trips by train work best with <strong>By Destination</strong>:<br>type where you want to go (e.g. Veluwe, Ardennes) and the app finds trails near the arrival station.'
+            : 'Looking for trails further away by train?'
+          }</p>
+          <button class="act-btn" style="margin-top:.5rem" onclick="setSearchMode('destination');document.querySelector('.search-card').scrollIntoView({behavior:'smooth'})">
+            🗺️ Switch to By Destination
+          </button>` : '';
       resultsDiv.innerHTML = `<div class="no-results">
         <div class="no-results-icon">🏞️</div>
         <h3>No results found</h3>
         <p>${isDestMode
           ? 'No trails with a nearby PT stop found here. Try increasing the radius or searching a different area.'
-          : 'No trails that require public transport found nearby. Trails too close to home are hidden — PT wouldn\'t help reach them.'
+          : isCycling
+          ? 'No cycling trails found near a train station in this area. Trails you could reach without a train are hidden.'
+          : 'No trails that genuinely require public transport found nearby. Try increasing the radius.'
         }</p>
         ${destTip}
       </div>`;
