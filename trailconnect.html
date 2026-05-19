@@ -321,7 +321,7 @@ details.api-settings[open] summary{margin-bottom:.85rem}
           <span class="slider-val" id="walkToStopVal">5km</span>
         </div>
         <input type="range" id="walkToStop" min="500" max="10000" step="500" value="5000">
-        <div class="slider-ticks" id="walkToStopTicks"><span>500m</span><span>2.5km</span><span>5km</span><span>7.5km</span><span>10km</span></div>
+        <div class="slider-ticks" id="walkToStopTicks"><span>500m</span><span>5km</span><span>10km</span><span>15km</span><span>20km</span></div>
       </div>
 
       <div class="slider-group">
@@ -329,8 +329,8 @@ details.api-settings[open] summary{margin-bottom:.85rem}
           <label id="walkFromStopLabel">🏔️ Walk from stop to trailhead</label>
           <span class="slider-val" id="walkFromStopVal">5km</span>
         </div>
-        <input type="range" id="walkFromStop" min="500" max="15000" step="500" value="5000">
-        <div class="slider-ticks" id="walkFromStopTicks"><span>500m</span><span>4km</span><span>7.5km</span><span>11km</span><span>15km</span></div>
+        <input type="range" id="walkFromStop" min="500" max="30000" step="500" value="5000">
+        <div class="slider-ticks" id="walkFromStopTicks"><span>500m</span><span>8km</span><span>15km</span><span>22km</span><span>30km</span></div>
       </div>
 
       <div style="display:flex;gap:.75rem;align-items:stretch">
@@ -625,8 +625,8 @@ const ACTIVITY_CONFIG = {
   hiking:   {
     toStopLabel:   '🚶 Walk from home to stop',
     fromStopLabel: '🥾 Walk from stop to trailhead',
-    toStop:   {min:500,  max:10000, step:500,  value:5000,  ticks:['500m','2.5km','5km','7.5km','10km']},
-    fromStop: {min:500,  max:15000, step:500,  value:5000,  ticks:['500m','4km','7.5km','11km','15km']},
+    toStop:   {min:500,  max:20000, step:500,  value:5000,  ticks:['500m','5km','10km','15km','20km']},
+    fromStop: {min:500,  max:30000, step:500,  value:5000,  ticks:['500m','8km','15km','22km','30km']},
   },
   cycling:  {
     toStopLabel:   '🚴 Cycle from home to stop',
@@ -637,14 +637,14 @@ const ACTIVITY_CONFIG = {
   swimming: {
     toStopLabel:   '🚶 Walk from home to stop',
     fromStopLabel: '🏊 Walk from stop to swimming spot',
-    toStop:   {min:500,  max:10000, step:500,  value:5000,  ticks:['500m','2.5km','5km','7.5km','10km']},
-    fromStop: {min:500,  max:10000, step:500,  value:5000,  ticks:['500m','2.5km','5km','7.5km','10km']},
+    toStop:   {min:500,  max:15000, step:500,  value:5000,  ticks:['500m','4km','7.5km','11km','15km']},
+    fromStop: {min:500,  max:20000, step:500,  value:5000,  ticks:['500m','5km','10km','15km','20km']},
   },
   skiing:   {
     toStopLabel:   '🚶 Walk from home to stop',
-    fromStopLabel: '⛷️ Walk from stop to ski area',
-    toStop:   {min:500,  max:10000, step:500,  value:5000,  ticks:['500m','2.5km','5km','7.5km','10km']},
-    fromStop: {min:500,  max:10000, step:500,  value:5000,  ticks:['500m','2.5km','5km','7.5km','10km']},
+    fromStopLabel: '⛷️ Walk/shuttle from stop to ski area',
+    toStop:   {min:500,  max:15000, step:500,  value:5000,  ticks:['500m','4km','7.5km','11km','15km']},
+    fromStop: {min:500,  max:30000, step:1000, value:10000, ticks:['500m','8km','15km','22km','30km']},
   },
 };
 
