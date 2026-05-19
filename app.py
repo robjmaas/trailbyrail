@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import os, sqlite3, math, json
 import xml.etree.ElementTree as ET
-import requests, stripe
+import requests
 from flask import Flask, request, jsonify, send_from_directory, Response, redirect
 from werkzeug.security import generate_password_hash, check_password_hash
 import secrets
@@ -36,8 +36,6 @@ def client_ip():
 
 # ── Database ──────────────────────────────────────────────────────────────────
 
-FREE_LIMIT = 20
-
 def init_db():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     db = sqlite3.connect(DB_PATH)
@@ -50,17 +48,6 @@ def init_db():
         dist_km       REAL,
         gpx_data      TEXT    NOT NULL,
         created_at    TEXT    DEFAULT (datetime('now'))
-    )''')
-    db.execute('''CREATE TABLE IF NOT EXISTS query_counts (
-        ip         TEXT    PRIMARY KEY,
-        count      INTEGER DEFAULT 0,
-        first_seen TEXT    DEFAULT (datetime('now')),
-        last_seen  TEXT    DEFAULT (datetime('now'))
-    )''')
-    db.execute('''CREATE TABLE IF NOT EXISTS pro_ips (
-        ip             TEXT    PRIMARY KEY,
-        stripe_session TEXT,
-        created_at     TEXT    DEFAULT (datetime('now'))
     )''')
     db.execute('''CREATE TABLE IF NOT EXISTS reviews (
         id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -309,71 +296,6 @@ def api_saved_searches_post():
         )
     db.commit(); db.close()
     return jsonify({'ok': True})
-
-# ── Search gate ───────────────────────────────────────────────────────────────
-
-@app.route('/api/search-gate', methods=['POST'])
-def api_search_gate():
-    if cfg('PAYWALL_ENABLED') != '1':
-        return jsonify({'ok': True, 'used': 0, 'limit': FREE_LIMIT, 'pro': True})
-    # Check logged-in user pro status first
-    user = get_current_user()
-    if user and user.get('is_pro'):
-        return jsonify({'ok': True, 'used': 0, 'limit': FREE_LIMIT, 'pro': True})
-    ip = client_ip()
-    db = get_db()
-    # Pro users have unlimited searches (IP fallback)
-    if db.execute('SELECT 1 FROM pro_ips WHERE ip=?', (ip,)).fetchone():
-        db.close()
-        return jsonify({'ok': True, 'used': 0, 'limit': FREE_LIMIT, 'pro': True})
-    row   = db.execute('SELECT count FROM query_counts WHERE ip=?', (ip,)).fetchone()
-    count = row['count'] if row else 0
-    if count >= FREE_LIMIT:
-        db.close()
-        return jsonify({'error': 'limit_reached', 'used': count, 'limit': FREE_LIMIT}), 429
-    if row:
-        db.execute("UPDATE query_counts SET count=count+1, last_seen=datetime('now') WHERE ip=?", (ip,))
-    else:
-        db.execute('INSERT INTO query_counts (ip, count) VALUES (?, 1)', (ip,))
-    db.commit(); db.close()
-    return jsonify({'ok': True, 'used': count + 1, 'limit': FREE_LIMIT, 'pro': False})
-
-# ── Payment ───────────────────────────────────────────────────────────────────
-
-@app.route('/api/checkout', methods=['POST'])
-def api_checkout():
-    stripe.api_key = cfg('STRIPE_SECRET_KEY')
-    price_id       = cfg('STRIPE_PRICE_ID')
-    if not stripe.api_key or not price_id:
-        return jsonify({'error': 'Payments not configured'}), 503
-    host    = request.host_url.rstrip('/')
-    session = stripe.checkout.Session.create(
-        mode               = 'subscription',
-        line_items         = [{'price': price_id, 'quantity': 1}],
-        success_url        = f'{host}/payment/success?session_id={{CHECKOUT_SESSION_ID}}',
-        cancel_url         = f'{host}/',
-        client_reference_id = client_ip(),
-    )
-    return jsonify({'url': session.url})
-
-@app.route('/payment/success')
-def payment_success():
-    stripe.api_key = cfg('STRIPE_SECRET_KEY')
-    session_id     = request.args.get('session_id', '')
-    try:
-        session = stripe.checkout.Session.retrieve(session_id)
-        if session.payment_status in ('paid', 'no_payment_required'):
-            ip = session.client_reference_id or client_ip()
-            db = get_db()
-            db.execute('INSERT OR REPLACE INTO pro_ips (ip, stripe_session) VALUES (?,?)', (ip, session_id))
-            # Also upgrade the logged-in user account
-            user = get_current_user()
-            if user:
-                db.execute('UPDATE users SET is_pro=1 WHERE id=?', (user['id'],))
-            db.commit(); db.close()
-    except Exception:
-        pass
-    return redirect('/?upgraded=1')
 
 # ── Global error handlers — always return JSON, never HTML ───────────────────
 

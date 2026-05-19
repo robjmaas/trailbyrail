@@ -118,15 +118,6 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
 .no-results h3{font-family:'Righteous',cursive;font-size:1.8rem;color:var(--forest-dark);margin-bottom:.75rem}
 .no-results p{max-width:420px;margin:0 auto;line-height:1.7;font-size:.95rem}
 .error{background:#fee;border:2px solid #c33;color:#c33;padding:1.5rem;border-radius:12px}
-.paywall-overlay{position:fixed;inset:0;background:rgba(20,40,20,.7);z-index:999;display:flex;align-items:center;justify-content:center;animation:fadeIn .3s}
-.paywall-box{background:#fff;border-radius:20px;padding:2.5rem 2rem;max-width:400px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3)}
-.paywall-box h2{font-family:'Righteous',cursive;font-size:1.8rem;color:var(--forest-dark);margin-bottom:.5rem}
-.paywall-box p{color:var(--forest-med);line-height:1.7;margin-bottom:1.5rem}
-.paywall-box .price{font-size:2rem;font-weight:700;color:var(--moss);margin:.5rem 0}
-.paywall-box .price span{font-size:1rem;font-weight:400;color:var(--forest-med)}
-.paywall-cta{display:block;background:linear-gradient(135deg,var(--moss),var(--forest-med));color:#fff;padding:.9rem 2rem;border-radius:50px;font-weight:600;font-size:1rem;text-decoration:none;margin-bottom:.75rem;cursor:pointer;border:none;width:100%}
-.paywall-dismiss{font-size:.85rem;color:var(--moss);cursor:pointer;background:none;border:none;text-decoration:underline}
-.query-counter{font-size:.75rem;color:var(--moss);text-align:right;margin-top:.25rem;opacity:.7}
 .source-pill{font-size:.68rem;padding:.18rem .55rem;border-radius:20px;font-weight:700;letter-spacing:.03em;vertical-align:middle;margin-left:.35rem}
 .src-osm{background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7}
 .src-oda{background:#fff3e0;color:#c84b00;border:1px solid #ffcc80}
@@ -331,8 +322,7 @@ details.api-settings[open] summary{margin-bottom:.85rem}
         </button>
         <button type="button" class="act-btn" id="saveSearchBtn" onclick="saveCurrentSearch()" title="Save this search" style="padding:.9rem 1rem;font-size:1rem;border-radius:12px;border:2px solid var(--moss);flex-shrink:0">💾 Save</button>
       </div>
-      <div class="query-counter" id="queryCounter"></div>
-      <div id="savedSearchesRow" class="saved-searches"></div>
+<div id="savedSearchesRow" class="saved-searches"></div>
 
     </form>
   </div>
@@ -756,76 +746,8 @@ async function downloadGPX(idx) {
   }
 }
 
-// ── Freemium query counter ────────────────────────────────────────────────────
-const FREE_LIMIT = 20;
-
-function updateQueryCounter(used, limit) {
-  const el = document.getElementById('queryCounter');
-  if (!el) return;
-  if (used >= limit) {
-    el.textContent = 'Free searches used up — upgrade for unlimited access';
-    el.style.color = '#c33';
-    el.style.opacity = '1';
-  } else {
-    const left = limit - used;
-    el.textContent = `${left} free search${left !== 1 ? 'es' : ''} remaining`;
-    el.style.color = '';
-    el.style.opacity = '.7';
-  }
-}
-
-async function startCheckout(btn) {
-  const orig = btn.textContent;
-  btn.textContent = 'Redirecting…';
-  btn.disabled = true;
-  try {
-    const r = await fetch('/api/checkout', { method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}' });
-    const d = await r.json();
-    if (d.url) { window.location.href = d.url; return; }
-    throw new Error(d.error || 'Checkout failed');
-  } catch (e) {
-    btn.textContent = orig;
-    btn.disabled = false;
-    alert(e.message);
-  }
-}
-
-function showPaywall() {
-  if (document.getElementById('paywallOverlay')) return;
-  const overlay = document.createElement('div');
-  overlay.id = 'paywallOverlay';
-  overlay.className = 'paywall-overlay';
-  overlay.innerHTML = `
-    <div class="paywall-box">
-      <div style="font-size:3rem;margin-bottom:.75rem">🏔️</div>
-      <h2>You've explored a lot!</h2>
-      <p>You've used all <strong>${FREE_LIMIT} free searches</strong>.<br>
-         Upgrade to keep finding car-free trails — unlimited searches, GPX downloads, and saved routes.</p>
-      <div class="price">€4.99 <span>/ month</span></div>
-      <button class="paywall-cta" onclick="startCheckout(this)">Upgrade to Pro</button>
-      <button class="paywall-dismiss" onclick="document.getElementById('paywallOverlay').remove()">Maybe later</button>
-    </div>`;
-  document.body.appendChild(overlay);
-}
-
 document.getElementById('searchForm').addEventListener('submit', async e => {
   e.preventDefault();
-
-  // Check server-side quota before doing anything
-  let gateRes;
-  try {
-    gateRes = await fetch('/api/search-gate', { method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}' });
-  } catch {
-    gateRes = { ok: false, status: 0 };
-  }
-  if (gateRes.status === 429 || !gateRes.ok && gateRes.status !== 0) {
-    const gd = await gateRes.json().catch(() => ({}));
-    updateQueryCounter(gd.used ?? FREE_LIMIT, gd.limit ?? FREE_LIMIT);
-    showPaywall();
-    return;
-  }
-  const gd = await gateRes.json().catch(() => ({ used: 0, limit: FREE_LIMIT }));
-  updateQueryCounter(gd.used, gd.limit);
 
   const location = document.getElementById('location').value.trim();
   const activity = document.getElementById('activity').value;
