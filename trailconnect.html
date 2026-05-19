@@ -118,6 +118,10 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
 .no-results h3{font-family:'Righteous',cursive;font-size:1.8rem;color:var(--forest-dark);margin-bottom:.75rem}
 .no-results p{max-width:420px;margin:0 auto;line-height:1.7;font-size:.95rem}
 .error{background:#fee;border:2px solid #c33;color:#c33;padding:1.5rem;border-radius:12px}
+.mode-toggle{display:flex;gap:.5rem}
+.mode-btn{flex:1;padding:.65rem 1rem;border:2px solid var(--moss);border-radius:10px;background:transparent;color:var(--forest-med);font-weight:600;font-size:.9rem;cursor:pointer;transition:all .2s;font-family:'Public Sans',sans-serif}
+.mode-btn.active{background:var(--moss);color:#fff;border-color:var(--moss)}
+.dest-badge{display:inline-block;background:linear-gradient(135deg,#2196F3,#1565C0);color:#fff;font-size:.68rem;font-weight:700;padding:.15rem .5rem;border-radius:20px;letter-spacing:.04em;vertical-align:middle;margin-left:.4rem}
 .source-pill{font-size:.68rem;padding:.18rem .55rem;border-radius:20px;font-weight:700;letter-spacing:.03em;vertical-align:middle;margin-left:.35rem}
 .src-osm{background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7}
 .src-oda{background:#fff3e0;color:#c84b00;border:1px solid #ffcc80}
@@ -288,6 +292,19 @@ details.api-settings[open] summary{margin-bottom:.85rem}
         <div class="chip-row" id="trailTypeChips"></div>
       </div>
 
+      <div class="mode-toggle">
+        <button type="button" class="mode-btn active" id="modeNearHome" onclick="setSearchMode('home')">🏠 Near home</button>
+        <button type="button" class="mode-btn" id="modeDestination" onclick="setSearchMode('destination')">🗺️ By destination</button>
+      </div>
+
+      <div class="input-group" id="destinationGroup" style="display:none">
+        <label for="destination">🗺️ Destination area</label>
+        <div class="ac-wrap">
+          <input type="text" id="destination" placeholder="e.g. Black Forest, Snowdonia, Dolomites, Alps…" autocomplete="off">
+          <div class="ac-dropdown" id="acDropdownDest"></div>
+        </div>
+      </div>
+
       <div class="input-group">
         <label>Transport modes</label>
         <div class="chip-row">
@@ -298,7 +315,7 @@ details.api-settings[open] summary{margin-bottom:.85rem}
         </div>
       </div>
 
-      <div class="slider-group">
+      <div class="slider-group" id="walkToStopGroup">
         <div class="slider-header">
           <label id="walkToStopLabel">🚶 Walk from home to stop</label>
           <span class="slider-val" id="walkToStopVal">5km</span>
@@ -360,6 +377,8 @@ details.api-settings[open] summary{margin-bottom:.85rem}
 
 <script>
 let homeLat, homeLon, currentTrails = [], selectedCoords = null;
+let searchMode = 'home'; // 'home' | 'destination'
+let destLat, destLon, selectedDestCoords = null;
 let doneTrails = new Set(JSON.parse(localStorage.getItem('doneTrails') || '[]'));
 let reviewsLoaded = {};
 let reviewRatings = {};
@@ -428,6 +447,87 @@ function pickItem(el) {
 }
 
 function hideAC() { acDropdown.style.display = 'none'; acDropdown.innerHTML = ''; }
+
+// ── Destination autocomplete ──────────────────────────────────────────────────
+
+const destInput = document.getElementById('destination');
+const acDropdownDest = document.getElementById('acDropdownDest');
+let acTimerDest;
+
+destInput.addEventListener('input', function() {
+  selectedDestCoords = null;
+  clearTimeout(acTimerDest);
+  const q = this.value.trim();
+  if (q.length < 3) { hideACDest(); return; }
+  acTimerDest = setTimeout(() => fetchACDest(q), 300);
+});
+
+destInput.addEventListener('keydown', function(e) {
+  const items = acDropdownDest.querySelectorAll('.ac-item');
+  const active = acDropdownDest.querySelector('.ac-item.ac-active');
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    const next = active ? active.nextElementSibling : items[0];
+    if (next) { active?.classList.remove('ac-active'); next.classList.add('ac-active'); next.scrollIntoView({block:'nearest'}); }
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    const prev = active?.previousElementSibling;
+    if (prev) { active.classList.remove('ac-active'); prev.classList.add('ac-active'); prev.scrollIntoView({block:'nearest'}); }
+  } else if (e.key === 'Enter' && active) {
+    e.preventDefault();
+    pickDestItem(active);
+  } else if (e.key === 'Escape') {
+    hideACDest();
+  }
+});
+
+destInput.addEventListener('blur', () => setTimeout(hideACDest, 150));
+
+async function fetchACDest(q) {
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=6&addressdetails=1`, {headers:{'Accept-Language':'en'}});
+    const data = await r.json();
+    renderACDest(data);
+  } catch { hideACDest(); }
+}
+
+function renderACDest(items) {
+  if (!items.length) { hideACDest(); return; }
+  acDropdownDest.innerHTML = items.map(item => {
+    const {main, sub} = fmtSuggestion(item);
+    return `<div class="ac-item" data-lat="${item.lat}" data-lon="${item.lon}" data-name="${esc(main + (sub ? ', ' + sub.split(',')[0] : ''))}">
+      <div class="ac-item-main">${main}</div>
+      ${sub ? `<div class="ac-item-sub">${sub}</div>` : ''}
+    </div>`;
+  }).join('');
+  acDropdownDest.querySelectorAll('.ac-item').forEach(el => el.addEventListener('mousedown', e => { e.preventDefault(); pickDestItem(el); }));
+  acDropdownDest.style.display = 'block';
+}
+
+function pickDestItem(el) {
+  destInput.value = el.dataset.name;
+  selectedDestCoords = {lat: parseFloat(el.dataset.lat), lon: parseFloat(el.dataset.lon)};
+  hideACDest();
+}
+
+function hideACDest() { acDropdownDest.style.display = 'none'; acDropdownDest.innerHTML = ''; }
+
+// ── Search mode toggle ────────────────────────────────────────────────────────
+
+function setSearchMode(mode) {
+  searchMode = mode;
+  document.getElementById('modeNearHome').classList.toggle('active', mode === 'home');
+  document.getElementById('modeDestination').classList.toggle('active', mode === 'destination');
+  const destGroup = document.getElementById('destinationGroup');
+  const walkToStopGroup = document.getElementById('walkToStopGroup');
+  destGroup.style.display = mode === 'destination' ? '' : 'none';
+  walkToStopGroup.style.display = mode === 'destination' ? 'none' : '';
+  // Update "from stop" label
+  const act = document.getElementById('activity').value;
+  const cfg = ACTIVITY_CONFIG[act] || ACTIVITY_CONFIG.hiking;
+  document.getElementById('walkFromStopLabel').textContent =
+    mode === 'destination' ? '🏔️ Radius around destination' : cfg.fromStopLabel;
+}
 
 function fmtSuggestion(item) {
   const a = item.address || {};
@@ -761,22 +861,47 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
   const resultsDiv = document.getElementById('results');
 
   btn.disabled = true;
+
+  // ── Resolve search centre ──────────────────────────────────────────────────
+  let searchLat, searchLon;
+  if (searchMode === 'destination') {
+    const destValue = destInput.value.trim();
+    if (!destValue) { btn.disabled = false; alert('Enter a destination to search.'); return; }
+    if (selectedDestCoords) {
+      destLat = selectedDestCoords.lat; destLon = selectedDestCoords.lon;
+    } else {
+      const dc = await geocode(destValue).catch(() => null);
+      if (!dc) { btn.disabled = false; resultsDiv.innerHTML = `<div class="error">⚠️ Destination not found.</div>`; return; }
+      destLat = dc.lat; destLon = dc.lon;
+    }
+    searchLat = destLat; searchLon = destLon;
+    // Also resolve home if provided (used for journey planning links)
+    if (location && !homeLat) {
+      const hc = await geocode(location).catch(() => null);
+      if (hc) { homeLat = hc.lat; homeLon = hc.lon; }
+    }
+  } else {
+    const coords = await geocode(location);
+    homeLat = coords.lat; homeLon = coords.lon;
+    searchLat = homeLat; searchLon = homeLon;
+  }
+
+  const destLabel = searchMode === 'destination' ? destInput.value.trim() : '';
+
   resultsDiv.innerHTML = `<div class="loading">
     <div class="loading-spinner">🔄</div>
-    <div class="loading-msg">Finding trails reachable by public transport…</div>
-    <div class="loading-sub">Searching stops within ${fmt(walkToStop)} of home · trails within ${fmt(walkFromStop)} of a stop</div>
+    <div class="loading-msg">${searchMode === 'destination' ? `Finding trails near <strong>${destLabel}</strong>…` : 'Finding trails reachable by public transport…'}</div>
+    <div class="loading-sub">${searchMode === 'destination' ? `Trails within ${fmt(walkFromStop)} of a PT stop · get there by train` : `Stops within ${fmt(walkToStop)} of home · trails within ${fmt(walkFromStop)} of a stop`}</div>
   </div>`;
 
   try {
-    const coords = await geocode(location);
-    homeLat = coords.lat; homeLon = coords.lon;
-
-    const combinedRadius = walkToStop + walkFromStop;
+    const combinedRadius = searchMode === 'destination' ? walkFromStop : walkToStop + walkFromStop;
+    const stopRadius = searchMode === 'destination' ? walkFromStop : walkToStop;
     const [stops, osmTrails, odaTrails, customTrails] = await Promise.all([
-      fetchStops(homeLat, homeLon, walkToStop, ptModes),
-      fetchTrails(homeLat, homeLon, combinedRadius, trailSubtypes),
-      fetchOutdooractive(homeLat, homeLon, combinedRadius, trailSubtypes),
-      fetchCustomRoutes(homeLat, homeLon, combinedRadius),
+      fetchStops(searchLat, searchLon, stopRadius, ptModes),
+      fetchTrails(searchLat, searchLon, combinedRadius, trailSubtypes),
+      fetchOutdooractive(searchLat, searchLon, combinedRadius, trailSubtypes),
+      fetchCustomRoutes(searchLat, searchLon, combinedRadius),
     ]);
 
     const osmNames = new Set(osmTrails.map(t => t.name.toLowerCase()));
@@ -811,7 +936,7 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
     resultsDiv.innerHTML = `
       <div class="results-meta">
         <span class="results-count">${results.length} trail${results.length !== 1 ? 's' : ''} found</span>
-        <span class="results-hint">≤${fmt(walkToStop)} to stop · ≤${fmt(walkFromStop)} stop to trail</span>
+        <span class="results-hint">${searchMode === 'destination' ? `📍 ${destLabel} · ≤${fmt(walkFromStop)} stop to trail` : `≤${fmt(walkToStop)} to stop · ≤${fmt(walkFromStop)} stop to trail`}</span>
         <div style="display:flex;gap:.45rem;flex-wrap:wrap">
           <button class="meta-btn" onclick="downloadAllGPX()">📦 Download all GPX</button>
           <button class="meta-btn" id="shareListBtn" onclick="shareList()">🔗 Share list</button>
@@ -858,22 +983,26 @@ function renderCard(trail, idx) {
   const legLabel = trail.type === 'cycling' ? 'cycle' : 'walk';
   const isDone = doneTrails.has(trail.name);
 
+  const isDestMode = searchMode === 'destination';
+  const originLat = homeLat || (isDestMode ? destLat : null);
+  const originLon = homeLon || (isDestMode ? destLon : null);
+
   const stopItems = trail.stops.map((s, si) => `
-    <a href="https://www.google.com/maps/dir/?api=1&origin=${homeLat},${homeLon}&destination=${s.lat},${s.lon}&travelmode=transit"
+    <a href="https://www.google.com/maps/dir/?api=1&origin=${originLat},${originLon}&destination=${s.lat},${s.lon}&travelmode=transit"
        target="_blank" class="stop-item${si === 0 ? ' best' : ''}">
       <div class="stop-icon-sm">${s.icon}</div>
       <div>
         <div class="stop-name">${s.name}</div>
         <div class="stop-meta">
           <span>${s.type}</span>
-          <span>${fmt(s.distFromHome)} from home</span>
+          ${!isDestMode ? `<span>${fmt(s.distFromHome)} from home</span>` : ''}
           <span>${fmt(s.distToTrail)} to trailhead</span>
           ${s.lines ? `<span class="stop-lines">${s.lines}</span>` : ''}
         </div>
       </div>
     </a>`).join('');
 
-  const transitUrl = `https://www.google.com/maps/dir/?api=1&origin=${homeLat},${homeLon}&destination=${best.lat},${best.lon}&travelmode=transit`;
+  const transitUrl = `https://www.google.com/maps/dir/?api=1&origin=${originLat},${originLon}&destination=${trail.lat},${trail.lon}&travelmode=transit`;
   const legUrl = `https://www.google.com/maps/dir/?api=1&origin=${best.lat},${best.lon}&destination=${trail.lat},${trail.lon}&travelmode=walking`;
   const trailUrl = `https://www.google.com/maps?q=${trail.lat},${trail.lon}`;
 
@@ -890,7 +1019,7 @@ function renderCard(trail, idx) {
   return `<div class="trail-card${isDone ? ' done-trail' : ''}" id="card-${idx}" style="animation-delay:${idx * .08}s${isDone ? ';border-left-color:var(--moss)' : ''}">
     <div class="trail-header">
       <div>
-        <div class="trail-name">${trail.icon} ${trail.name}${srcPill}${avgBadge}</div>
+        <div class="trail-name">${trail.icon} ${trail.name}${srcPill}${isDestMode ? '<span class="dest-badge">✈️ Destination</span>' : ''}${avgBadge}</div>
         <div class="trail-sub">${[trail.sub, diffLabel, elevLabel].filter(Boolean).join(' · ')}</div>
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.4rem">
@@ -900,6 +1029,29 @@ function renderCard(trail, idx) {
     </div>
 
     <div class="journey-chain">
+      ${isDestMode ? `
+      <div class="jnode">
+        <div class="jicon jicon-home">🏠</div>
+        <div class="jlabel">Home</div>
+      </div>
+      <div class="jleg">
+        <div class="jline"></div>
+        <div class="jdist">🚂 Long distance</div>
+      </div>
+      <div class="jnode">
+        <div class="jicon jicon-stop">${best.icon}</div>
+        <div class="jlabel">${best.name}</div>
+        <div class="jsub">${best.type}</div>
+      </div>
+      <div class="jleg">
+        <div class="jline"></div>
+        <div class="jdist">${trail.icon} ${fmt(best.distToTrail)}</div>
+      </div>
+      <div class="jnode">
+        <div class="jicon jicon-trail">🏔️</div>
+        <div class="jlabel">Trailhead</div>
+        ${trail.trailDist ? `<div class="jsub">${trail.trailDist}km</div>` : ''}
+      </div>` : `
       <div class="jnode">
         <div class="jicon jicon-home">🏠</div>
         <div class="jlabel">Home</div>
@@ -921,18 +1073,19 @@ function renderCard(trail, idx) {
         <div class="jicon jicon-trail">🏔️</div>
         <div class="jlabel">Trailhead</div>
         ${trail.trailDist ? `<div class="jsub">${trail.trailDist}km</div>` : ''}
-      </div>
+      </div>`}
+
     </div>
 
     <div id="weather-${idx}"></div>
 
     <div class="stops-section">
-      <div class="stops-title">🚌 ${trail.stops.length} connecting stop${trail.stops.length !== 1 ? 's' : ''}</div>
+      <div class="stops-title">${isDestMode ? '🚂 Alight at' : '🚌'} ${trail.stops.length} nearby stop${trail.stops.length !== 1 ? 's' : ''}</div>
       <div class="stop-list">${stopItems}</div>
     </div>
 
     <div class="action-row">
-      <a class="act-btn primary" href="${transitUrl}" target="_blank">🚌 Plan transit</a>
+      <a class="act-btn primary" href="${transitUrl}" target="_blank">${isDestMode ? '🚂 Plan journey' : '🚌 Plan transit'}</a>
       <a class="act-btn" href="${legUrl}" target="_blank">🥾 Stop → Trail</a>
       <a class="act-btn" href="${trailUrl}" target="_blank">🗺️ View on map</a>
       ${trail.oda_url ? `<a class="act-btn" href="${trail.oda_url}" target="_blank">🌐 Outdooractive</a>` : ''}
