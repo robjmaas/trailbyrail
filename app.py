@@ -178,6 +178,14 @@ def payment_success():
         pass
     return redirect('/?upgraded=1')
 
+# ── Global error handlers — always return JSON, never HTML ───────────────────
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    if isinstance(e, requests.HTTPError):
+        return jsonify({'error': f'Upstream error {e.response.status_code}'}), 502
+    return jsonify({'error': str(e)}), 500
+
 # ── Static ────────────────────────────────────────────────────────────────────
 
 @app.route('/')

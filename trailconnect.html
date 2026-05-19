@@ -1070,8 +1070,9 @@ async function doGenerateLoop(idx) {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({lat: stop.lat, lon: stop.lon, distance: distM, vehicle})
     });
-    const d = await r.json();
-    if (d.message || d.error) throw new Error(d.message || d.error);
+    let d;
+    try { d = await r.json(); } catch { throw new Error(`Server error ${r.status}`); }
+    if (!r.ok || d.message || d.error) throw new Error(d?.message || d?.error || `Error ${r.status}`);
     const path = d.paths?.[0];
     if (!path) throw new Error('No route returned');
     loopResults[idx] = path.points.coordinates;
