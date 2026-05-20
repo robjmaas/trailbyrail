@@ -749,13 +749,14 @@ function setSearchMode(mode) {
   document.getElementById('destinationGroup').style.display = mode === 'destination' ? '' : 'none';
   document.getElementById('ptJourneyGroup').style.display   = mode === 'destination' ? 'none' : '';
 
-  // Train checkbox: only meaningful in destination mode (or when ptJourney > 0)
+  // Train checkbox: visible in destination mode OR when ptJourney > 0 in near-home mode
   const trainChip = document.querySelector('input[name="ptMode"][value="train"]')?.closest('.chip');
   if (trainChip) {
-    trainChip.style.display = mode === 'destination' ? '' : 'none';
-    // Uncheck train in near-home, check it in destination
+    const hasPtJourney = parseInt(document.getElementById('ptJourney').value) > 0;
+    const showTrain = mode === 'destination' || hasPtJourney;
+    trainChip.style.display = showTrain ? '' : 'none';
     const trainInput = trainChip.querySelector('input');
-    if (trainInput) trainInput.checked = mode === 'destination';
+    if (trainInput) trainInput.checked = showTrain;
   }
 
   // Slider labels
@@ -1456,26 +1457,35 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
     btn.disabled = false;
 
     if (!results.length) {
-      const destTip = !isDestMode
-        ? `<p style="margin-top:.75rem;font-size:.9rem">${isCycling
-            ? 'Cycling day trips by train work best with <strong>By Destination</strong>:<br>type where you want to go (e.g. Veluwe, Ardennes) and the app finds trails near the arrival station.'
-            : 'Looking for trails further away by train?'
-          }</p>
-          <button class="act-btn" style="margin-top:.5rem" onclick="setSearchMode('destination');document.querySelector('.search-card').scrollIntoView({behavior:'smooth'})">
-            🗺️ Switch to By Destination
-          </button>` : '';
+      let noIcon, noTitle, noBody, noTip = '';
+      if (isDestMode) {
+        noIcon  = '🗺️';
+        noTitle = `Nothing found near ${destLabel}`;
+        noBody  = `No trails with a nearby stop were found within ${fmt(destSearchRadius)} of that area. Try a more specific place name — for example "Freudenstadt" instead of "Black Forest" — or increase the <strong>Walk from stop to trail</strong> radius.`;
+      } else if (ptJourney > 0) {
+        noIcon  = '🚂';
+        noTitle = 'No trails found on this train route';
+        noBody  = `We couldn't find any trails within <strong>${fmt(walkFromStop)}</strong> of a station in the area your train would reach. Try:`;
+        noTip   = `<ul style="text-align:left;margin:.6rem auto;max-width:360px;line-height:1.9;font-size:.9rem">
+          <li>Increase <strong>Walk from stop to trail</strong></li>
+          <li>Increase the <strong>Train journey distance</strong></li>
+          <li>Switch to <strong>By Destination</strong> and name a specific area (e.g. Veluwe, Ardennes)
+            <br><button class="act-btn" style="margin-top:.35rem" onclick="setSearchMode('destination');document.querySelector('.search-card').scrollIntoView({behavior:'smooth'})">🗺️ Switch to By Destination</button>
+          </li>
+        </ul>`;
+      } else {
+        noIcon  = '🏞️';
+        noTitle = 'No trails found nearby';
+        noBody  = isCycling
+          ? 'No cycling trails were found near a stop in this area. Try increasing the search radius, or use <strong>By Destination</strong> to head somewhere specific.'
+          : 'No trails were found near a stop in this area. Try increasing your search radius, or slide the <strong>Train Journey</strong> distance to search further afield.';
+        noTip   = `<button class="act-btn" style="margin-top:.75rem" onclick="setSearchMode('destination');document.querySelector('.search-card').scrollIntoView({behavior:'smooth'})">🗺️ Try By Destination</button>`;
+      }
       resultsDiv.innerHTML = `<div class="no-results">
-        <div class="no-results-icon">🏞️</div>
-        <h3>No results found</h3>
-        <p>${isDestMode
-          ? `No trails with a reachable PT stop found within ${fmt(destSearchRadius)} of <strong>${destLabel}</strong>. Try a more specific area name (e.g. "Freudenstadt" instead of "Black Forest"), or increase the Walk from stop radius.`
-          : ptJourney > 0
-          ? `No trails found within ${fmt(walkFromStop)} of a train station or bus stop in the searched area. Try increasing the "Walk from stop to trail" slider, or use By Destination to pick a specific area (e.g. Veluwe, Ardennes).`
-          : isCycling
-          ? 'No cycling trails found near a stop in this area.'
-          : 'No trails found near a local stop. Try increasing the radius.'
-        }</p>
-        ${destTip}
+        <div class="no-results-icon">${noIcon}</div>
+        <h3>${noTitle}</h3>
+        <p>${noBody}</p>
+        ${noTip}
       </div>`;
       return;
     }
