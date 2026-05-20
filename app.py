@@ -351,11 +351,14 @@ def share_page(code):
 
 # ── Admin / debug ─────────────────────────────────────────────────────────────
 
-@app.route('/api/admin/status', methods=['GET'])
-def api_admin_status():
+def _admin_check():
     key = request.args.get('key', '')
     admin_key = cfg('ADMIN_KEY')
-    if not admin_key or key != admin_key:
+    return admin_key and key == admin_key
+
+@app.route('/api/admin/status', methods=['GET'])
+def api_admin_status():
+    if not _admin_check():
         return jsonify({'error': 'Forbidden'}), 403
     db = get_db()
     users  = db.execute('SELECT id, email, search_count, created_at FROM users ORDER BY id').fetchall()
@@ -368,6 +371,28 @@ def api_admin_status():
         'users':  [dict(u) for u in users],
         'top_guests': [dict(g) for g in guests],
     })
+
+@app.route('/api/admin/create-user', methods=['POST'])
+def api_admin_create_user():
+    if not _admin_check():
+        return jsonify({'error': 'Forbidden'}), 403
+    data     = request.json or {}
+    email    = data.get('email', '').strip().lower()
+    password = data.get('password', '')
+    if '@' not in email or len(password) < 8:
+        return jsonify({'error': 'Invalid email or password too short'}), 400
+    db = get_db()
+    existing = db.execute('SELECT id FROM users WHERE email=?', (email,)).fetchone()
+    if existing:
+        # Update password for existing account
+        db.execute('UPDATE users SET password_hash=? WHERE email=?',
+                   (generate_password_hash(password), email))
+        db.commit(); db.close()
+        return jsonify({'ok': True, 'action': 'password_updated', 'email': email})
+    cur = db.execute('INSERT INTO users (email, password_hash) VALUES (?,?)',
+                     (email, generate_password_hash(password)))
+    db.commit(); db.close()
+    return jsonify({'ok': True, 'action': 'created', 'email': email, 'id': cur.lastrowid})
 
 # ── Search tracking ──────────────────────────────────────────────────────────
 
