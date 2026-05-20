@@ -134,6 +134,9 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
 .src-custom{background:#f3e5f5;color:#7b1fa2;border:1px solid #ce93d8}
 .loop-panel{display:none;margin-top:1rem;padding:1.1rem;background:var(--cloud);border-radius:12px;border:2px solid var(--moss);animation:fadeIn .25s ease-out}
 .loop-panel.open{display:block}
+.gpx-panel{display:none;margin-top:.75rem;padding:.85rem 1rem;background:var(--cloud);border-radius:12px;border:2px solid var(--moss);animation:fadeIn .2s ease-out}
+.gpx-panel.open{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
+.gpx-panel-label{font-size:.78rem;font-weight:700;color:var(--moss);text-transform:uppercase;letter-spacing:.05em;width:100%;margin-bottom:.1rem}
 .upload-card{background:var(--cream);border-radius:24px;padding:2rem;box-shadow:0 24px 70px rgba(0,0,0,.45);margin-bottom:2rem;border:none}
 .upload-card h2{font-family:'Righteous',cursive;color:var(--forest-dark);font-size:1.3rem;margin-bottom:1.25rem}
 .upload-form{padding:1.1rem;background:var(--cloud);border-radius:12px;margin-bottom:1rem;display:none}
@@ -1670,6 +1673,7 @@ function renderCard(trail, idx) {
       ${trail.oda_url ? `<a class="act-btn" href="${trail.oda_url}" target="_blank">🌐 Outdooractive</a>` : ''}
       <button class="act-btn" onclick="toggleLoopPanel(${idx})">🔁 Loop</button>
       <button class="act-btn" onclick="downloadGPX(${idx})">📥 GPX</button>
+      <button class="act-btn" onclick="toggleGpxPanel(${idx})">🔍 Find GPX</button>
       <button class="act-btn" id="shareBtn-${idx}" onclick="shareTrail(${idx})">🔗 Share</button>
       <button class="act-btn${isDone ? ' done-active' : ''}" id="doneBtn-${idx}" onclick="toggleDone(${idx})">${isDone ? '✅ Done' : '🏅 Done'}</button>
       <button class="act-btn" id="reviewBtn-${idx}" onclick="toggleReviews(${idx})">💬 Reviews</button>
@@ -1686,6 +1690,13 @@ function renderCard(trail, idx) {
         <button class="act-btn primary" style="margin-top:.5rem" onclick="submitReview(${idx})">Submit</button>
         <span id="reviewStatus-${idx}" style="font-size:.82rem;margin-left:.5rem"></span>
       </div>
+    </div>
+
+    <div id="gpx-${idx}" class="gpx-panel">
+      <div class="gpx-panel-label">Find this route on</div>
+      <a class="act-btn" href="https://www.alltrails.com/search?q=${encodeURIComponent(trail.name)}" target="_blank" rel="noopener">🌲 AllTrails</a>
+      <a class="act-btn" href="https://www.komoot.com/discover?query=${encodeURIComponent(trail.name)}" target="_blank" rel="noopener">🧭 Komoot</a>
+      <a class="act-btn" href="https://www.wikiloc.com/wikiloc/find.do?act=14&q=${encodeURIComponent(trail.name)}&lat=${trail.lat}&lng=${trail.lon}" target="_blank" rel="noopener">📍 Wikiloc</a>
     </div>
 
     <div id="loop-${idx}" class="loop-panel">
@@ -1766,6 +1777,10 @@ async function shareTrail(idx) {
     prompt('Copy this link to share:', url);
     btn.textContent = '🔗 Share';
   }
+}
+
+function toggleGpxPanel(idx) {
+  document.getElementById(`gpx-${idx}`).classList.toggle('open');
 }
 
 function toggleLoopPanel(idx) {
