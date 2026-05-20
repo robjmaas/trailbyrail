@@ -225,10 +225,11 @@ details.api-settings[open] summary{margin-bottom:.85rem}
 .avg-rating{font-size:.78rem;font-weight:700;color:var(--trail-tan);background:rgba(240,192,96,.18);padding:.15rem .5rem;border-radius:6px;margin-left:.4rem}
 /* ── Saved searches ── */
 .saved-searches{display:flex;flex-wrap:wrap;gap:.45rem;margin-top:.75rem}
-.saved-chip{display:inline-flex;align-items:center;gap:.4rem;padding:.35rem .85rem;border:2px solid var(--moss);border-radius:20px;cursor:pointer;font-size:.82rem;font-weight:600;color:var(--forest-dark);background:white;transition:all .2s;white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis}
+.saved-chip{display:inline-flex;align-items:center;gap:.4rem;padding:.35rem .85rem;border:2px solid var(--moss);border-radius:20px;cursor:pointer;font-size:.82rem;font-weight:600;color:var(--forest-dark);background:white;transition:all .2s;white-space:nowrap;max-width:240px}
 .saved-chip:hover{background:var(--moss);color:white}
-.saved-chip .del-saved{margin-left:.2rem;opacity:.5;flex-shrink:0}
-.saved-chip .del-saved:hover{opacity:1}
+.saved-chip .chip-label{overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+.saved-chip .share-saved,.saved-chip .del-saved{margin-left:.1rem;opacity:.45;flex-shrink:0;font-style:normal;transition:opacity .15s}
+.saved-chip .share-saved:hover,.saved-chip .del-saved:hover{opacity:1}
 /* ── Seasonal chip ── */
 .season-chip{display:inline-flex;align-items:center;gap:.25rem;padding:.2rem .55rem;border-radius:12px;font-size:.72rem;font-weight:600;background:rgba(58,125,82,.12);border:1px solid rgba(58,125,82,.25);color:var(--forest-dark);margin-left:.35rem;vertical-align:middle}
 /* ── Share list / GPX pack ── */
@@ -2091,7 +2092,8 @@ function renderSavedSearchChips() {
   if (!searches.length) { row.innerHTML = ''; return; }
   row.innerHTML = searches.map((s, i) =>
     `<div class="saved-chip" onclick="restoreSearch(${i})">
-      <span style="overflow:hidden;text-overflow:ellipsis">${s.location} · ${s.activity}</span>
+      <span class="chip-label">${s.location} · ${s.activity}</span>
+      <span class="share-saved" title="Copy share link" onclick="event.stopPropagation();shareSavedSearch(${i},this)">🔗</span>
       <span class="del-saved" onclick="event.stopPropagation();deleteSavedSearch(${i})">✕</span>
     </div>`
   ).join('');
@@ -2126,6 +2128,29 @@ function deleteSavedSearch(i) {
   searches.splice(i, 1);
   localStorage.setItem('savedSearches', JSON.stringify(searches));
   renderSavedSearchChips();
+}
+
+async function shareSavedSearch(i, btn) {
+  const s = getSavedSearches()[i];
+  if (!s) return;
+  const params = {
+    location:      s.location,
+    activity:      s.activity,
+    walkToStop:    s.walkToStop,
+    walkFromStop:  s.walkFromStop,
+    ptModes:       (s.ptModes || []).join(','),
+    trailSubtypes: (s.trailSubtypes || []).join(','),
+  };
+  const hash = '#share=' + encodeURIComponent(JSON.stringify(params));
+  const url  = location.origin + location.pathname + hash;
+  try {
+    await navigator.clipboard.writeText(url);
+    const orig = btn.textContent;
+    btn.textContent = '✅';
+    setTimeout(() => { btn.textContent = orig; }, 2000);
+  } catch {
+    prompt('Copy this link to share:', url);
+  }
 }
 
 // ── GPX pack download ─────────────────────────────────────────────────────────
