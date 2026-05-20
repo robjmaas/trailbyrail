@@ -1914,7 +1914,7 @@ function toggleUploadForm() {
   document.getElementById('uploadStatus').innerHTML = '';
 }
 
-async function getLocation() {
+async function getLocation(force = false) {
   const input = document.getElementById('location');
   const btn = document.getElementById('locationBtn');
   if (!navigator.geolocation) { input.placeholder = 'Enter your address'; return; }
@@ -1923,7 +1923,11 @@ async function getLocation() {
   navigator.geolocation.getCurrentPosition(
     async pos => {
       homeLat = pos.coords.latitude; homeLon = pos.coords.longitude;
-      input.value = await reverseGeocode(homeLat, homeLon);
+      // Don't overwrite if the field already has content (e.g. from a share link),
+      // unless the user explicitly clicked the 📡 button (force=true).
+      if (force || !input.value.trim()) {
+        input.value = await reverseGeocode(homeLat, homeLon);
+      }
       btn.disabled = false;
     },
     () => { input.placeholder = 'e.g. Amsterdam, Breda, Utrecht…'; btn.disabled = false; },
@@ -1931,11 +1935,9 @@ async function getLocation() {
   );
 }
 
-document.getElementById('locationBtn').addEventListener('click', getLocation);
+document.getElementById('locationBtn').addEventListener('click', () => getLocation(true));
 window.addEventListener('load', async () => {
-  // Skip auto-detect when opening a share link — the shared location takes priority
-  const isShareLink = location.pathname.match(/^\/s\//) || location.hash.startsWith('#share=');
-  if (!isShareLink) getLocation();
+  getLocation(); // won't overwrite if share params fill the field first
   loadMyRoutes();
   await restoreAuthSession();
   renderSavedSearchChips();
