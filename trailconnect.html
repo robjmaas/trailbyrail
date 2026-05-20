@@ -1708,11 +1708,27 @@ function renderCard(trail, idx) {
 // ── Loop generation ───────────────────────────────────────────────────────────
 const loopResults = {};
 
+async function buildShareUrl(params) {
+  try {
+    const r = await fetch('/api/share', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(params)
+    });
+    if (r.ok) {
+      const { code } = await r.json();
+      return `${location.origin}/s/${code}`;
+    }
+  } catch {}
+  // Fallback: hash URL
+  return location.origin + location.pathname + '#share=' + encodeURIComponent(JSON.stringify(params));
+}
+
 async function shareTrail(idx) {
   const t   = currentTrails[idx];
   const btn = document.getElementById(`shareBtn-${idx}`);
+  btn.textContent = '⏳';
+  btn.disabled = true;
 
-  // Build deep link: full search params + trail identity so the friend lands on this card
   const params = {
     location:      document.getElementById('location').value.trim(),
     activity:      document.getElementById('activity').value,
@@ -1723,21 +1739,23 @@ async function shareTrail(idx) {
     trailId:       t.id,
     trailName:     t.name,
   };
-  const hash = '#share=' + encodeURIComponent(JSON.stringify(params));
-  const url  = location.origin + location.pathname + hash;
+  const url = await buildShareUrl(params);
+  btn.disabled = false;
 
   if (navigator.share) {
     try { await navigator.share({ title: t.name, text: `${t.icon} ${t.name}`, url }); } catch {}
+    btn.textContent = '🔗 Share';
     return;
   }
 
   try {
     await navigator.clipboard.writeText(url);
-    const orig = btn.textContent;
+    const orig = '🔗 Share';
     btn.textContent = '✅ Link copied!';
     setTimeout(() => { btn.textContent = orig; }, 2000);
   } catch {
     prompt('Copy this link to share:', url);
+    btn.textContent = '🔗 Share';
   }
 }
 
@@ -1917,7 +1935,8 @@ window.addEventListener('load', async () => {
   loadMyRoutes();
   await restoreAuthSession();
   renderSavedSearchChips();
-  checkHashAndAutoSearch();
+  await checkShortLinkAndAutoSearch(); // handles /s/<code> short URLs
+  checkHashAndAutoSearch();            // handles legacy #share= hash URLs
 });
 
 // ── Weather ───────────────────────────────────────────────────────────────────
@@ -2160,6 +2179,8 @@ function deleteSavedSearch(i) {
 async function shareSavedSearch(i, btn) {
   const s = getSavedSearches()[i];
   if (!s) return;
+  const orig = btn.textContent;
+  btn.textContent = '⏳';
   const params = {
     location:      s.location,
     activity:      s.activity,
@@ -2168,15 +2189,14 @@ async function shareSavedSearch(i, btn) {
     ptModes:       (s.ptModes || []).join(','),
     trailSubtypes: (s.trailSubtypes || []).join(','),
   };
-  const hash = '#share=' + encodeURIComponent(JSON.stringify(params));
-  const url  = location.origin + location.pathname + hash;
+  const url = await buildShareUrl(params);
   try {
     await navigator.clipboard.writeText(url);
-    const orig = btn.textContent;
     btn.textContent = '✅';
     setTimeout(() => { btn.textContent = orig; }, 2000);
   } catch {
     prompt('Copy this link to share:', url);
+    btn.textContent = orig;
   }
 }
 
@@ -2249,29 +2269,45 @@ async function shareList() {
   history.replaceState(null, '', hash);
 }
 
+async function checkShortLinkAndAutoSearch() {
+  const match = location.pathname.match(/^\/s\/([A-Za-z0-9_-]+)$/);
+  if (!match) return;
+  const code = match[1];
+  try {
+    const r = await fetch(`/api/share/${code}`);
+    if (!r.ok) return;
+    const params = await r.json();
+    applyShareParams(params);
+  } catch {}
+}
+
+function applyShareParams(params) {
+  if (!params.location) return;
+  document.getElementById('location').value = params.location;
+  document.getElementById('activity').value = params.activity || 'hiking';
+  setSliders(params.activity || 'hiking');
+  updateTrailTypeChips(params.activity || 'hiking');
+  if (params.walkToStop)   { document.getElementById('walkToStop').value   = params.walkToStop;   updateSlider('walkToStop',   'walkToStopVal'); }
+  if (params.walkFromStop) { document.getElementById('walkFromStop').value = params.walkFromStop; updateSlider('walkFromStop', 'walkFromStopVal'); }
+  if (params.ptModes) {
+    const modes = params.ptModes.split(',');
+    document.querySelectorAll('input[name="ptMode"]').forEach(el => { el.checked = modes.includes(el.value); });
+  }
+  if (params.trailSubtypes) {
+    const subs = params.trailSubtypes.split(',');
+    document.querySelectorAll('input[name="trailType"]').forEach(el => { el.checked = subs.includes(el.value); });
+  }
+  if (params.trailId)   pendingTrailId   = params.trailId;
+  if (params.trailName) pendingTrailName = params.trailName;
+  document.getElementById('searchForm').dispatchEvent(new Event('submit'));
+}
+
 function checkHashAndAutoSearch() {
   const hash = location.hash;
   if (!hash.startsWith('#share=')) return;
   try {
     const params = JSON.parse(decodeURIComponent(hash.slice(7)));
-    if (!params.location) return;
-    document.getElementById('location').value = params.location;
-    document.getElementById('activity').value = params.activity || 'hiking';
-    setSliders(params.activity || 'hiking');
-    updateTrailTypeChips(params.activity || 'hiking');
-    if (params.walkToStop) { document.getElementById('walkToStop').value = params.walkToStop; updateSlider('walkToStop', 'walkToStopVal'); }
-    if (params.walkFromStop) { document.getElementById('walkFromStop').value = params.walkFromStop; updateSlider('walkFromStop', 'walkFromStopVal'); }
-    if (params.ptModes) {
-      const modes = params.ptModes.split(',');
-      document.querySelectorAll('input[name="ptMode"]').forEach(el => { el.checked = modes.includes(el.value); });
-    }
-    if (params.trailSubtypes) {
-      const subs = params.trailSubtypes.split(',');
-      document.querySelectorAll('input[name="trailType"]').forEach(el => { el.checked = subs.includes(el.value); });
-    }
-    if (params.trailId)   pendingTrailId   = params.trailId;
-    if (params.trailName) pendingTrailName = params.trailName;
-    document.getElementById('searchForm').dispatchEvent(new Event('submit'));
+    applyShareParams(params);
   } catch { /* ignore malformed hash */ }
 }
 

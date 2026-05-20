@@ -95,6 +95,11 @@ def init_db():
         count      INTEGER NOT NULL DEFAULT 0,
         updated_at TEXT    DEFAULT (datetime('now'))
     )''')
+    db.execute('''CREATE TABLE IF NOT EXISTS share_links (
+        code       TEXT PRIMARY KEY,
+        data       TEXT NOT NULL,
+        created_at TEXT DEFAULT (datetime('now'))
+    )''')
     # Migration: add search_count to users if it doesn't exist yet
     try:
         db.execute('ALTER TABLE users ADD COLUMN search_count INTEGER DEFAULT 0')
@@ -311,6 +316,38 @@ def api_saved_searches_post():
         )
     db.commit(); db.close()
     return jsonify({'ok': True})
+
+# ── Short share links ─────────────────────────────────────────────────────────
+
+@app.route('/api/share', methods=['POST'])
+def api_share_create():
+    params = request.json or {}
+    if not params:
+        return jsonify({'error': 'No params'}), 400
+    db = get_db()
+    # Generate a unique 6-char URL-safe code
+    for _ in range(10):
+        code = secrets.token_urlsafe(4)[:6]
+        if not db.execute('SELECT 1 FROM share_links WHERE code=?', (code,)).fetchone():
+            break
+    db.execute('INSERT OR REPLACE INTO share_links (code, data) VALUES (?,?)',
+               (code, json.dumps(params)))
+    db.commit(); db.close()
+    return jsonify({'code': code})
+
+@app.route('/api/share/<code>', methods=['GET'])
+def api_share_get(code):
+    db = get_db()
+    row = db.execute('SELECT data FROM share_links WHERE code=?', (code,)).fetchone()
+    db.close()
+    if not row:
+        return jsonify({'error': 'Not found'}), 404
+    return Response(row['data'], content_type='application/json')
+
+@app.route('/s/<code>')
+def share_page(code):
+    # Serve the SPA — JS will detect the /s/ path and fetch params
+    return send_from_directory(BASE_DIR, 'trailconnect.html')
 
 # ── Admin / debug ─────────────────────────────────────────────────────────────
 
