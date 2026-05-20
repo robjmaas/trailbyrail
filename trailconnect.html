@@ -1153,7 +1153,7 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
 
       // 2 total Overpass calls: home departure stops + one big scatter query
       const [homeStopsResult, scatterResult] = await Promise.all([
-        fetchStops(homeLat, homeLon, walkToStop, ['train']).catch(() => []),
+        fetchStops(homeLat, homeLon, walkToStop, ptModes).catch(() => []), // all modes → bus fallback
         fetchAllScatter(scatterPts, trailRadius, stopRadius, trailSubtypes)
           .catch(() => ({ trails: [], stops: [] })),
       ]);
@@ -1161,7 +1161,8 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
       homeStops = homeStopsResult;
       const { trails: scatterTrails, stops: scatterStops } = scatterResult;
       osmTrails = scatterTrails;
-      stops     = scatterStops;
+      // Fix distFromHome on arrival stops (fetchAllScatter sets it to 0)
+      stops = scatterStops.map(s => ({...s, distFromHome: dist(homeLat, homeLon, s.lat, s.lon)}));
       odaTrails = [];
       console.log('[TrailbyRail] trails found:', osmTrails.length, '| train stops:', stops.length);
       customTrails = await fetchCustomRoutes(homeLat, homeLon, 50000);
@@ -1415,6 +1416,8 @@ function renderCard(trail, idx) {
       </div>`;
       })() : (() => {
         const dep = lastPtJourney > 0 ? trail.departureStop : null;
+        const trainDist = dep && best ? Math.round(dist(dep.lat, dep.lon, best.lat, best.lon)) : lastPtJourney;
+        const depIsNotTrain = dep && dep.icon !== '🚂';
         return dep ? `
       <div class="jnode">
         <div class="jicon jicon-home">🏠</div>
@@ -1427,11 +1430,11 @@ function renderCard(trail, idx) {
       <div class="jnode">
         <div class="jicon jicon-stop">${dep.icon}</div>
         <div class="jlabel">${dep.name}</div>
-        <div class="jsub">${dep.type}</div>
+        <div class="jsub">${dep.type}${depIsNotTrain ? ' · connect to train' : ''}</div>
       </div>
       <div class="jleg">
         <div class="jline"></div>
-        <div class="jdist">🚂 ${fmt(lastPtJourney)}</div>
+        <div class="jdist">🚂 ~${fmt(trainDist)}</div>
       </div>
       <div class="jnode">
         <div class="jicon jicon-stop">${best.icon}</div>
