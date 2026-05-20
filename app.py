@@ -690,7 +690,10 @@ def api_transit_time():
         db.commit(); db.close()
         return jsonify({'duration_mins': duration_mins, 'legs': legs_out})
     except requests.HTTPError as e:
-        return jsonify({'error': f'GraphHopper {e.response.status_code}'}), 502
+        body = ''
+        try: body = e.response.text[:400]
+        except: pass
+        return jsonify({'error': f'GraphHopper {e.response.status_code}', 'detail': body}), 502
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
