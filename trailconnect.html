@@ -2244,31 +2244,32 @@ function highlightPendingTrail() {
 }
 
 // ── Share curated list ────────────────────────────────────────────────────────
-function buildShareHash() {
-  const params = {
-    location: document.getElementById('location').value.trim(),
-    activity: document.getElementById('activity').value,
-    walkToStop: document.getElementById('walkToStop').value,
-    walkFromStop: document.getElementById('walkFromStop').value,
-    ptModes: getChecked('ptMode').join(','),
+function buildShareParams() {
+  return {
+    location:      document.getElementById('location').value.trim(),
+    activity:      document.getElementById('activity').value,
+    walkToStop:    document.getElementById('walkToStop').value,
+    walkFromStop:  document.getElementById('walkFromStop').value,
+    ptModes:       getChecked('ptMode').join(','),
     trailSubtypes: getChecked('trailType').join(','),
+    searchMode:    searchMode,
+    destination:   destInput.value.trim(),
   };
-  return '#share=' + encodeURIComponent(JSON.stringify(params));
 }
 
 async function shareList() {
-  const hash = buildShareHash();
-  const url = location.origin + location.pathname + hash;
   const btn = document.getElementById('shareListBtn');
+  const orig = btn.textContent;
+  btn.textContent = '⏳';
+  const url = await buildShareUrl(buildShareParams());
+  btn.textContent = orig;
   try {
     await navigator.clipboard.writeText(url);
-    const orig = btn.textContent;
     btn.textContent = '✅ Copied!';
     setTimeout(() => { btn.textContent = orig; }, 2000);
   } catch {
     prompt('Copy this URL to share your trail list:', url);
   }
-  history.replaceState(null, '', hash);
 }
 
 async function checkShortLinkAndAutoSearch() {
