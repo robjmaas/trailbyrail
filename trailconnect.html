@@ -137,8 +137,13 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
 .gpx-panel{display:none;margin-top:.75rem;padding:.85rem 1rem;background:var(--cloud);border-radius:12px;border:2px solid var(--moss);animation:fadeIn .2s ease-out}
 .gpx-panel.open{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
 .gpx-panel-label{font-size:.78rem;font-weight:700;color:var(--moss);text-transform:uppercase;letter-spacing:.05em;width:100%;margin-bottom:.1rem}
-.upload-card{background:var(--cream);border-radius:24px;padding:2rem;box-shadow:0 24px 70px rgba(0,0,0,.45);margin-bottom:2rem;border:none}
-.upload-card h2{font-family:'Righteous',cursive;color:var(--forest-dark);font-size:1.3rem;margin-bottom:1.25rem}
+.my-routes-drawer{margin-bottom:1.5rem}
+.my-routes-drawer summary{display:inline-flex;align-items:center;gap:.4rem;font-size:.8rem;font-weight:600;color:rgba(255,255,255,.45);cursor:pointer;list-style:none;padding:.3rem .1rem;user-select:none;transition:color .2s}
+.my-routes-drawer summary::-webkit-details-marker{display:none}
+.my-routes-drawer summary::before{content:'▶';font-size:.6rem;transition:transform .2s;display:inline-block}
+.my-routes-drawer[open] summary::before{transform:rotate(90deg)}
+.my-routes-drawer summary:hover{color:rgba(255,255,255,.75)}
+.my-routes-body{background:var(--cream);border-radius:16px;padding:1.25rem 1.5rem;margin-top:.5rem;box-shadow:0 8px 32px rgba(0,0,0,.25)}
 .upload-form{padding:1.1rem;background:var(--cloud);border-radius:12px;margin-bottom:1rem;display:none}
 .route-list{display:flex;flex-direction:column;gap:.45rem;margin-top:.75rem}
 .route-item{display:flex;align-items:center;gap:.75rem;padding:.65rem 1rem;background:var(--cloud);border-radius:10px}
@@ -497,33 +502,35 @@ details.api-settings[open] summary{margin-bottom:.85rem}
     </form>
   </div>
 
-  <div class="upload-card">
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <h2>📁 My Routes</h2>
-      <button class="act-btn" onclick="toggleUploadForm()">+ Upload GPX</button>
+  <details class="my-routes-drawer" id="myRoutesDrawer">
+    <summary>📁 My Routes</summary>
+    <div class="my-routes-body">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:.75rem">
+        <button class="act-btn" onclick="toggleUploadForm()">+ Upload GPX</button>
+      </div>
+      <div class="upload-form" id="uploadForm">
+        <div class="input-group" style="margin-bottom:.75rem">
+          <label for="uploadName">Route name <span style="font-weight:400;color:var(--moss)">(optional)</span></label>
+          <input type="text" id="uploadName" placeholder="e.g. Mastbos loop">
+        </div>
+        <div class="input-group" style="margin-bottom:.75rem">
+          <label for="uploadType">Activity</label>
+          <select id="uploadType">
+            <option value="hiking">🥾 Hiking / Running</option>
+            <option value="cycling">🚴 Cycling</option>
+            <option value="swimming">🏊 Swimming</option>
+            <option value="skiing">⛷️ Skiing</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
+          <input type="file" id="gpxFile" accept=".gpx" style="flex:1;min-width:0">
+          <button class="act-btn primary" onclick="doUploadGPX()">Upload</button>
+        </div>
+        <div id="uploadStatus" style="margin-top:.5rem;font-size:.85rem"></div>
+      </div>
+      <div class="route-list" id="myRoutesList"></div>
     </div>
-    <div class="upload-form" id="uploadForm">
-      <div class="input-group" style="margin-bottom:.75rem">
-        <label for="uploadName">Route name <span style="font-weight:400;color:var(--moss)">(optional)</span></label>
-        <input type="text" id="uploadName" placeholder="e.g. Mastbos loop">
-      </div>
-      <div class="input-group" style="margin-bottom:.75rem">
-        <label for="uploadType">Activity</label>
-        <select id="uploadType">
-          <option value="hiking">🥾 Hiking / Running</option>
-          <option value="cycling">🚴 Cycling</option>
-          <option value="swimming">🏊 Swimming</option>
-          <option value="skiing">⛷️ Skiing</option>
-        </select>
-      </div>
-      <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
-        <input type="file" id="gpxFile" accept=".gpx" style="flex:1;min-width:0">
-        <button class="act-btn primary" onclick="doUploadGPX()">Upload</button>
-      </div>
-      <div id="uploadStatus" style="margin-top:.5rem;font-size:.85rem"></div>
-    </div>
-    <div class="route-list" id="myRoutesList"><p style="color:var(--moss);font-size:.9rem">Loading…</p></div>
-  </div>
+  </details>
 
   <div id="results"></div>
 </div>
@@ -2006,9 +2013,12 @@ async function getLocation(force = false) {
 }
 
 document.getElementById('locationBtn').addEventListener('click', () => getLocation(true));
+// Load routes only when the drawer is first opened
+document.getElementById('myRoutesDrawer').addEventListener('toggle', function() {
+  if (this.open && !this._routesLoaded) { this._routesLoaded = true; loadMyRoutes(); }
+});
 window.addEventListener('load', async () => {
   getLocation(); // won't overwrite if share params fill the field first
-  loadMyRoutes();
   await restoreAuthSession();
   renderSavedSearchChips();
   await checkShortLinkAndAutoSearch(); // handles /s/<code> short URLs
