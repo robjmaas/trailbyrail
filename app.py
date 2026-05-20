@@ -323,12 +323,11 @@ OVERPASS_ENDPOINTS = [
 # don't both hit the rate limit simultaneously.
 _overpass_lock = threading.Lock()
 _overpass_last_call = [0.0]   # list so the closure can mutate it
-_OVERPASS_MIN_GAP = 1.5       # seconds between outbound requests (enough for 6 parallel)
+_OVERPASS_MIN_GAP = 3.0       # seconds between outbound requests — conservative to avoid bans
 
 @app.route('/api/overpass', methods=['POST'])
 def api_overpass():
     query = request.json.get('query', '')
-    # Enforce minimum gap between outbound Overpass requests
     with _overpass_lock:
         wait = _OVERPASS_MIN_GAP - (time.time() - _overpass_last_call[0])
         if wait > 0:
@@ -339,28 +338,28 @@ def api_overpass():
     for i, endpoint in enumerate(OVERPASS_ENDPOINTS):
         try:
             if i > 0:
-                time.sleep(1.5)   # pause before trying next mirror
+                time.sleep(3.0)   # wait longer before trying next mirror
             r = requests.post(
                 endpoint,
                 data={'data': query},
                 headers=HEADERS,
-                timeout=55,       # generous timeout; Overpass queries declare [timeout:35]
+                timeout=55,
             )
-            if r.status_code == 429:
-                last_err = 429
-                continue          # try next mirror
+            if r.status_code in (429, 403):
+                last_err = r.status_code
+                continue          # try next mirror on rate-limit or block
             if not r.ok:
                 last_err = r.status_code
-                continue          # try next mirror on any error
+                continue
             return Response(r.content, content_type='application/json')
         except requests.Timeout:
             last_err = 'timeout'
-            continue              # try next mirror on timeout too
+            continue
         except Exception as e:
             last_err = str(e)
             continue
-    if last_err == 429:
-        return jsonify({'error': 'Overpass error 429'}), 429
+    if last_err in (429, 403):
+        return jsonify({'error': f'Overpass error {last_err}'}), 429
     if last_err == 'timeout':
         return jsonify({'error': 'Overpass error 504'}), 504
     return jsonify({'error': f'Overpass error {last_err}'}), 502
