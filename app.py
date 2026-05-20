@@ -197,9 +197,12 @@ def api_auth_login():
     password = data.get('password', '')
     db = get_db()
     row = db.execute('SELECT * FROM users WHERE email=?', (email,)).fetchone()
-    if not row or not check_password_hash(row['password_hash'], password):
+    if not row:
         db.close()
-        return jsonify({'error': 'Invalid email or password'}), 401
+        return jsonify({'error': 'No account found with that email'}), 401
+    if not check_password_hash(row['password_hash'], password):
+        db.close()
+        return jsonify({'error': 'Incorrect password'}), 401
     token = secrets.token_hex(32)
     db.execute('INSERT INTO user_sessions (token, user_id) VALUES (?,?)', (token, row['id']))
     db.commit(); db.close()
@@ -308,6 +311,26 @@ def api_saved_searches_post():
         )
     db.commit(); db.close()
     return jsonify({'ok': True})
+
+# ── Admin / debug ─────────────────────────────────────────────────────────────
+
+@app.route('/api/admin/status', methods=['GET'])
+def api_admin_status():
+    key = request.args.get('key', '')
+    admin_key = cfg('ADMIN_KEY')
+    if not admin_key or key != admin_key:
+        return jsonify({'error': 'Forbidden'}), 403
+    db = get_db()
+    users  = db.execute('SELECT id, email, search_count, created_at FROM users ORDER BY id').fetchall()
+    guests = db.execute('SELECT ip, count, updated_at FROM guest_searches ORDER BY count DESC LIMIT 20').fetchall()
+    db.close()
+    return jsonify({
+        'db_path':      DB_PATH,
+        'db_exists':    os.path.isfile(DB_PATH),
+        'free_searches': FREE_SEARCHES,
+        'users':  [dict(u) for u in users],
+        'top_guests': [dict(g) for g in guests],
+    })
 
 # ── Search tracking ──────────────────────────────────────────────────────────
 
