@@ -1747,9 +1747,11 @@ function renderCard(trail, idx) {
     </div>
 
     <div id="gpx-${idx}" class="gpx-panel">
-      <div class="gpx-panel-label">Find this route on</div>
-      <a class="act-btn" href="https://www.alltrails.com/search?q=${encodeURIComponent(trail.name)}" target="_blank" rel="noopener">🌲 AllTrails</a>
-      <a class="act-btn" href="https://www.komoot.com/discover?query=${encodeURIComponent(trail.name)}" target="_blank" rel="noopener">🧭 Komoot</a>
+      <div class="gpx-panel-label">Find GPX near this trailhead</div>
+      ${trail.wtType === 'hiking' ? `<a class="act-btn" href="https://hiking.waymarkedtrails.org/#?map=14!${trail.lat}!${trail.lon}" target="_blank" rel="noopener">🗺️ Waymarked Trails</a>` : ''}
+      ${trail.wtType === 'cycling' || trail.wtType === 'mtb' ? `<a class="act-btn" href="https://cycling.waymarkedtrails.org/#?map=14!${trail.lat}!${trail.lon}" target="_blank" rel="noopener">🗺️ Waymarked Trails</a>` : ''}
+      <a class="act-btn" href="https://www.komoot.com/discover/place/@${trail.lat},${trail.lon},13z" target="_blank" rel="noopener">🧭 Komoot</a>
+      <a class="act-btn" href="https://www.alltrails.com/search?q=${encodeURIComponent(trail.name)}#map=13/${trail.lat}/${trail.lon}" target="_blank" rel="noopener">🌲 AllTrails</a>
       <a class="act-btn" href="https://www.wikiloc.com/wikiloc/find.do?act=14&q=${encodeURIComponent(trail.name)}&lat=${trail.lat}&lng=${trail.lon}" target="_blank" rel="noopener">📍 Wikiloc</a>
     </div>
 
