@@ -1153,7 +1153,7 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
 
       // 2 total Overpass calls: home departure stops + one big scatter query
       const [homeStopsResult, scatterResult] = await Promise.all([
-        fetchStops(homeLat, homeLon, walkToStop, ['train']),
+        fetchStops(homeLat, homeLon, walkToStop, ['train']).catch(() => []),
         fetchAllScatter(scatterPts, trailRadius, stopRadius, trailSubtypes)
           .catch(() => ({ trails: [], stops: [] })),
       ]);
@@ -1273,13 +1273,13 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
 
   } catch(err) {
     btn.disabled = false;
-    const is504 = err.message.includes('504') || err.message.includes('502');
-    resultsDiv.innerHTML = is504
+    const isOverpassBusy = /50[24]|429|403/.test(err.message);
+    resultsDiv.innerHTML = isOverpassBusy
       ? `<div class="no-results">
           <div class="no-results-icon">⏱️</div>
-          <h3>Search timed out</h3>
-          <p>The map database is busy or the search area is too large.<br>
-             Try <strong>reducing the radius</strong>, selecting fewer trail types, or search again in a moment.</p>
+          <h3>Map database busy</h3>
+          <p>The OpenStreetMap server is temporarily rate-limited or overloaded.<br>
+             Wait a few seconds and try again, or <strong>reduce the search radius</strong>.</p>
           <button class="btn-find" style="margin-top:1rem;padding:.75rem 2rem" onclick="document.getElementById('findBtn').click()">🔄 Try again</button>
         </div>`
       : `<div class="error">⚠️ ${err.message}</div>`;
