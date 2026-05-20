@@ -1738,6 +1738,8 @@ async function shareTrail(idx) {
     trailSubtypes: getChecked('trailType').join(','),
     trailId:       t.id,
     trailName:     t.name,
+    searchMode:    searchMode,
+    destination:   destInput.value.trim(),
   };
   const url = await buildShareUrl(params);
   btn.disabled = false;
@@ -2282,8 +2284,12 @@ async function checkShortLinkAndAutoSearch() {
 }
 
 function applyShareParams(params) {
-  if (!params.location) return;
-  document.getElementById('location').value = params.location;
+  if (!params.location && !params.destination) return;
+  if (params.searchMode === 'destination' && params.destination) {
+    setSearchMode('destination');
+    destInput.value = params.destination;
+  }
+  document.getElementById('location').value = params.location || '';
   document.getElementById('activity').value = params.activity || 'hiking';
   setSliders(params.activity || 'hiking');
   updateTrailTypeChips(params.activity || 'hiking');
