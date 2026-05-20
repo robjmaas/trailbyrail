@@ -103,8 +103,13 @@ def init_db():
     db.execute('''CREATE TABLE IF NOT EXISTS transit_cache (
         cache_key     TEXT PRIMARY KEY,
         duration_mins INTEGER NOT NULL,
+        legs_json     TEXT,
         cached_at     TEXT DEFAULT (datetime('now'))
     )''')
+    try:
+        db.execute('ALTER TABLE transit_cache ADD COLUMN legs_json TEXT')
+    except Exception:
+        pass
     # Migration: add search_count to users if it doesn't exist yet
     try:
         db.execute('ALTER TABLE users ADD COLUMN search_count INTEGER DEFAULT 0')
@@ -612,12 +617,15 @@ def api_transit_time():
     cache_key = f'{o_lat},{o_lon},{d_lat},{d_lon}'
     db = get_db()
     cached = db.execute(
-        "SELECT duration_mins FROM transit_cache WHERE cache_key=? AND cached_at > datetime('now','-7 days')",
+        "SELECT duration_mins, legs_json FROM transit_cache WHERE cache_key=? AND cached_at > datetime('now','-7 days')",
         (cache_key,)
     ).fetchone()
     if cached:
         db.close()
-        return jsonify({'duration_mins': cached['duration_mins'], 'cached': True})
+        resp = {'duration_mins': cached['duration_mins'], 'cached': True}
+        if cached['legs_json']:
+            resp['legs'] = json.loads(cached['legs_json'])
+        return jsonify(resp)
     db.close()
 
     # Use next weekday at 09:00 UTC — representative for scheduled services
@@ -645,12 +653,42 @@ def api_transit_time():
         gh = r.json()
         if 'paths' not in gh or not gh['paths']:
             return jsonify({'error': 'No PT route found'}), 404
-        duration_mins = round(gh['paths'][0]['time'] / 60000)
+
+        path = gh['paths'][0]
+        duration_mins = round(path['time'] / 60000)
+
+        # Parse legs into a clean structure for the frontend
+        VEHICLE_ICON = {
+            'RAIL': '🚂', 'SUBWAY': '🚇', 'TRAM': '🚊',
+            'BUS': '🚌', 'FERRY': '⛴️', 'GONDOLA': '🚡', 'CABLE_CAR': '🚠',
+        }
+        legs_out = []
+        for leg in path.get('legs', []):
+            mins = round(leg.get('time', 0) / 60000)
+            dist = round(leg.get('distance', 0))
+            if leg.get('type') == 'pt':
+                vtype = (leg.get('vehicle_type') or 'RAIL').upper()
+                icon  = VEHICLE_ICON.get(vtype, '🚂')
+                legs_out.append({
+                    'type':     'pt',
+                    'icon':     icon,
+                    'line':     leg.get('trip_headsign') or leg.get('route_id') or '',
+                    'desc':     leg.get('route_desc') or '',
+                    'from':     leg.get('departureLocation') or '',
+                    'to':       leg.get('arrivalLocation') or '',
+                    'mins':     mins,
+                })
+            else:
+                legs_out.append({'type': 'walk', 'mins': mins, 'dist_m': dist})
+
+        legs_json = json.dumps(legs_out)
         db = get_db()
-        db.execute('INSERT OR REPLACE INTO transit_cache (cache_key, duration_mins) VALUES (?,?)',
-                   (cache_key, duration_mins))
+        db.execute(
+            'INSERT OR REPLACE INTO transit_cache (cache_key, duration_mins, legs_json) VALUES (?,?,?)',
+            (cache_key, duration_mins, legs_json)
+        )
         db.commit(); db.close()
-        return jsonify({'duration_mins': duration_mins})
+        return jsonify({'duration_mins': duration_mins, 'legs': legs_out})
     except requests.HTTPError as e:
         return jsonify({'error': f'GraphHopper {e.response.status_code}'}), 502
     except Exception as e:
