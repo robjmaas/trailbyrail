@@ -1933,7 +1933,9 @@ async function getLocation() {
 
 document.getElementById('locationBtn').addEventListener('click', getLocation);
 window.addEventListener('load', async () => {
-  getLocation();
+  // Skip auto-detect when opening a share link — the shared location takes priority
+  const isShareLink = location.pathname.match(/^\/s\//) || location.hash.startsWith('#share=');
+  if (!isShareLink) getLocation();
   loadMyRoutes();
   await restoreAuthSession();
   renderSavedSearchChips();
