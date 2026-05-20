@@ -1484,7 +1484,7 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
       <div class="filter-bar" id="filterBar">
         <label>Min km <input type="number" id="filterMinKm" min="0" step="0.5" placeholder="0" oninput="applyFilters()"></label>
         <label>Max km <input type="number" id="filterMaxKm" min="0" step="0.5" placeholder="∞" oninput="applyFilters()"></label>
-        <label title="Max travel time to trailhead">⏱️ Max travel <input type="number" id="filterMaxTravel" min="0" step="0.5" placeholder="∞" style="width:60px" oninput="applyFilters()"> h</label>
+        <label title="Max trail duration (hiking/cycling time on trail)">⏱️ Max trail time <input type="number" id="filterMaxTravel" min="0" step="0.5" placeholder="∞" style="width:55px" oninput="applyFilters()"> h</label>
         <label><input type="checkbox" id="filterHideCompleted" onchange="applyFilters()"> Hide completed</label>
       </div>
       <div class="results-grid" id="resultsGrid">
@@ -1703,15 +1703,7 @@ function renderCard(trail, idx) {
 
     </div>
 
-    ${(() => {
-      const jStr = fmtMins(trail.journeyMins);
-      const tStr = fmtMins(trail.trailMins);
-      if (!jStr && !tStr) return '';
-      const parts = [];
-      if (jStr) parts.push(`<span>⏱️ ~${jStr} to trailhead</span>`);
-      if (tStr) parts.push(`<span>${trail.icon} ~${tStr} on trail</span>`);
-      return `<div class="duration-row">${parts.join('<span class="dur-sep">·</span>')}</div>`;
-    })()}
+    ${trail.trailMins ? `<div class="duration-row"><span>${trail.icon} ~${fmtMins(trail.trailMins)} on trail</span></div>` : ''}
 
     <div id="weather-${idx}"></div>
 
@@ -2079,8 +2071,8 @@ function applyFilters() {
     if (!card) return;
     const km = parseFloat(t.trailDist) || 0;
     const done = doneTrails.has(t.name);
-    // Travel filter: only exclude if journeyMins is known AND exceeds the limit
-    const travelOk = !isFinite(maxTravelMins) || !t.journeyMins || t.journeyMins <= maxTravelMins;
+    // Trail duration filter: only exclude if trailMins is known AND exceeds the limit
+    const travelOk = !isFinite(maxTravelMins) || !t.trailMins || t.trailMins <= maxTravelMins;
     const show = (!minKm || km >= minKm) && (!isFinite(maxKm) || km <= maxKm) && travelOk && !(hideCompleted && done);
     card.style.display = show ? '' : 'none';
     if (show) visible++;
