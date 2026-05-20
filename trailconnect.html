@@ -214,6 +214,7 @@ details.api-settings[open] summary{margin-bottom:.85rem}
 /* ── Duration row ── */
 .duration-row{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;padding:.55rem .85rem;background:linear-gradient(135deg,rgba(58,125,82,.1),rgba(13,36,22,.06));border-radius:10px;border:1px solid rgba(58,125,82,.2);margin:.6rem 0;font-size:.82rem;font-weight:600;color:var(--forest-dark)}
 .dur-sep{color:var(--moss);opacity:.5;font-weight:400}
+.transit-pill{opacity:.45;font-weight:400;font-size:.78rem}
 /* ── Done badge ── */
 .trail-card.done-trail{opacity:.8;border-left-color:var(--moss)!important}
 .act-btn.done-active{background:var(--moss);color:white;border-color:var(--moss)}
@@ -1484,7 +1485,7 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
       <div class="filter-bar" id="filterBar">
         <label>Min km <input type="number" id="filterMinKm" min="0" step="0.5" placeholder="0" oninput="applyFilters()"></label>
         <label>Max km <input type="number" id="filterMaxKm" min="0" step="0.5" placeholder="∞" oninput="applyFilters()"></label>
-        <label title="Max trail duration (hiking/cycling time on trail)">⏱️ Max trail time <input type="number" id="filterMaxTravel" min="0" step="0.5" placeholder="∞" style="width:55px" oninput="applyFilters()"> h</label>
+        <label title="Max total transit time door-to-trailhead">🚌 Max transit <input type="number" id="filterMaxTravel" min="0" step="0.5" placeholder="∞" style="width:55px" oninput="applyFilters()"> h</label>
         <label><input type="checkbox" id="filterHideCompleted" onchange="applyFilters()"> Hide completed</label>
       </div>
       <div class="results-grid" id="resultsGrid">
@@ -1492,6 +1493,7 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
       </div>`;
     results.forEach((t, i) => fetchWeatherForCard(i, t.lat, t.lon));
     highlightPendingTrail();
+    fetchTransitTimes(results);
 
   } catch(err) {
     btn.disabled = false;
@@ -1703,7 +1705,10 @@ function renderCard(trail, idx) {
 
     </div>
 
-    ${trail.trailMins ? `<div class="duration-row"><span>${trail.icon} ~${fmtMins(trail.trailMins)} on trail</span></div>` : ''}
+    <div class="duration-row">
+      <span id="transit-${idx}" class="transit-pill">⏳</span>
+      ${trail.trailMins ? `<span class="dur-sep">·</span><span>${trail.icon} ~${fmtMins(trail.trailMins)} on trail</span>` : ''}
+    </div>
 
     <div id="weather-${idx}"></div>
 
@@ -2056,6 +2061,35 @@ async function fetchWeatherForCard(idx, lat, lon) {
   } catch { /* silently skip */ }
 }
 
+// ── Transit time (GraphHopper PT) ────────────────────────────────────────────
+async function fetchTransitTimes(results) {
+  if (!homeLat || !homeLon) return;
+  for (let i = 0; i < results.length; i++) {
+    const t   = results[i];
+    const el  = document.getElementById(`transit-${i}`);
+    if (!el) continue;
+    try {
+      const r = await fetch('/api/transit-time', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({origin_lat: homeLat, origin_lon: homeLon, dest_lat: t.lat, dest_lon: t.lon})
+      });
+      const d = await r.json();
+      if (d.duration_mins) {
+        el.textContent = `🚌 ~${fmtMins(d.duration_mins)} transit`;
+        // Also store on the trail object so the filter can use real transit times
+        results[i].journeyMins = d.duration_mins;
+      } else {
+        el.remove();
+      }
+    } catch {
+      el.remove();
+    }
+    // Stagger requests — avoid hammering GraphHopper quota
+    if (i < results.length - 1) await new Promise(res => setTimeout(res, 250));
+  }
+}
+
 // ── Filters ───────────────────────────────────────────────────────────────────
 function applyFilters() {
   const minKm = parseFloat(document.getElementById('filterMinKm')?.value) || 0;
@@ -2071,8 +2105,8 @@ function applyFilters() {
     if (!card) return;
     const km = parseFloat(t.trailDist) || 0;
     const done = doneTrails.has(t.name);
-    // Trail duration filter: only exclude if trailMins is known AND exceeds the limit
-    const travelOk = !isFinite(maxTravelMins) || !t.trailMins || t.trailMins <= maxTravelMins;
+    // Transit filter: only exclude if real journeyMins was fetched AND exceeds the limit
+    const travelOk = !isFinite(maxTravelMins) || !t.journeyMins || t.journeyMins <= maxTravelMins;
     const show = (!minKm || km >= minKm) && (!isFinite(maxKm) || km <= maxKm) && travelOk && !(hideCompleted && done);
     card.style.display = show ? '' : 'none';
     if (show) visible++;

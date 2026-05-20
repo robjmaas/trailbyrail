@@ -100,6 +100,11 @@ def init_db():
         data       TEXT NOT NULL,
         created_at TEXT DEFAULT (datetime('now'))
     )''')
+    db.execute('''CREATE TABLE IF NOT EXISTS transit_cache (
+        cache_key     TEXT PRIMARY KEY,
+        duration_mins INTEGER NOT NULL,
+        cached_at     TEXT DEFAULT (datetime('now'))
+    )''')
     # Migration: add search_count to users if it doesn't exist yet
     try:
         db.execute('ALTER TABLE users ADD COLUMN search_count INTEGER DEFAULT 0')
@@ -588,6 +593,68 @@ def api_graphhopper():
     )
     r.raise_for_status()
     return Response(r.content, content_type='application/json')
+
+@app.route('/api/transit-time', methods=['POST'])
+def api_transit_time():
+    from datetime import datetime, timedelta, timezone
+    key = cfg('GRAPHHOPPER_KEY')
+    if not key:
+        return jsonify({'error': 'GRAPHHOPPER_KEY not configured'}), 503
+    data = request.json or {}
+    try:
+        o_lat = round(float(data['origin_lat']), 3)
+        o_lon = round(float(data['origin_lon']), 3)
+        d_lat = round(float(data['dest_lat']),   3)
+        d_lon = round(float(data['dest_lon']),   3)
+    except (KeyError, ValueError, TypeError):
+        return jsonify({'error': 'Invalid coordinates'}), 400
+
+    cache_key = f'{o_lat},{o_lon},{d_lat},{d_lon}'
+    db = get_db()
+    cached = db.execute(
+        "SELECT duration_mins FROM transit_cache WHERE cache_key=? AND cached_at > datetime('now','-7 days')",
+        (cache_key,)
+    ).fetchone()
+    if cached:
+        db.close()
+        return jsonify({'duration_mins': cached['duration_mins'], 'cached': True})
+    db.close()
+
+    # Use next weekday at 09:00 UTC — representative for scheduled services
+    now = datetime.now(timezone.utc)
+    dep = now.replace(hour=9, minute=0, second=0, microsecond=0)
+    if dep <= now or now.weekday() >= 5:
+        days = 1
+        while (now + timedelta(days=days)).weekday() >= 5:
+            days += 1
+        dep = (now + timedelta(days=days)).replace(hour=9, minute=0, second=0, microsecond=0)
+
+    try:
+        r = requests.post(
+            f'https://graphhopper.com/api/1/route?key={key}',
+            json={
+                'points': [[o_lon, o_lat], [d_lon, d_lat]],
+                'profile': 'pt',
+                'pt.earliest_departure_time': dep.strftime('%Y-%m-%dT%H:%M:%SZ'),
+                'locale': 'en',
+            },
+            headers={**HEADERS, 'Content-Type': 'application/json'},
+            timeout=15,
+        )
+        r.raise_for_status()
+        gh = r.json()
+        if 'paths' not in gh or not gh['paths']:
+            return jsonify({'error': 'No PT route found'}), 404
+        duration_mins = round(gh['paths'][0]['time'] / 60000)
+        db = get_db()
+        db.execute('INSERT OR REPLACE INTO transit_cache (cache_key, duration_mins) VALUES (?,?)',
+                   (cache_key, duration_mins))
+        db.commit(); db.close()
+        return jsonify({'duration_mins': duration_mins})
+    except requests.HTTPError as e:
+        return jsonify({'error': f'GraphHopper {e.response.status_code}'}), 502
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/upload-gpx', methods=['POST'])
 def api_upload_gpx():
