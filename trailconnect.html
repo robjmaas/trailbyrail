@@ -1279,7 +1279,11 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
 
   const destLabel = searchMode === 'destination' ? destInput.value.trim() : '';
   const isDestMode = searchMode === 'destination';
-  const combinedRadius = isDestMode ? walkFromStop : walkToStop + ptJourney + walkFromStop;
+  // In destination mode use a wide search area (25km around the destination centre)
+  // so large regions like "Black Forest" or "Veluwe" are properly covered.
+  // walkFromStop is kept as the per-trail stop-distance filter only.
+  const destSearchRadius = 25000;
+  const combinedRadius = isDestMode ? destSearchRadius : walkToStop + ptJourney + walkFromStop;
 
   resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
   resultsDiv.innerHTML = `<div class="loading">
@@ -1330,7 +1334,7 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
 
     } else {
       // ── Standard single-centre search ────────────────────────────────────
-      const stopRadius = isDestMode ? walkFromStop : combinedRadius;
+      const stopRadius = isDestMode ? destSearchRadius : combinedRadius;
       const needHomeStops = isDestMode;
       const fetchList = [
         fetchStops(searchLat, searchLon, stopRadius, ptModes),
@@ -1408,7 +1412,7 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
         <div class="no-results-icon">🏞️</div>
         <h3>No results found</h3>
         <p>${isDestMode
-          ? 'No trails with a nearby PT stop found here. Try increasing the Walk from stop radius or searching a different area.'
+          ? `No trails with a reachable PT stop found within ${fmt(destSearchRadius)} of <strong>${destLabel}</strong>. Try a more specific area name (e.g. "Freudenstadt" instead of "Black Forest"), or increase the Walk from stop radius.`
           : ptJourney > 0
           ? `No trails found within ${fmt(walkFromStop)} of a train station or bus stop in the searched area. Try increasing the "Walk from stop to trail" slider, or use By Destination to pick a specific area (e.g. Veluwe, Ardennes).`
           : isCycling
@@ -1423,7 +1427,7 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
     resultsDiv.innerHTML = `
       <div class="results-meta">
         <span class="results-count">${results.length} trail${results.length !== 1 ? 's' : ''} found</span>
-        <span class="results-hint">${isDestMode ? `📍 ${destLabel} · ≤${fmt(walkFromStop)} stop to trail` : ptJourney > 0 ? `🚂 Up to ${fmt(ptJourney)} by train · ≤${fmt(walkFromStop)} from station to trail` : `Within ${fmt(combinedRadius)} of home · ≤${fmt(walkFromStop)} from trail`}</span>
+        <span class="results-hint">${isDestMode ? `📍 ${destLabel} · within ${fmt(destSearchRadius)} · ≤${fmt(walkFromStop)} stop→trail` : ptJourney > 0 ? `🚂 Up to ${fmt(ptJourney)} by train · ≤${fmt(walkFromStop)} from station to trail` : `Within ${fmt(combinedRadius)} of home · ≤${fmt(walkFromStop)} from trail`}</span>
         <div style="display:flex;gap:.45rem;flex-wrap:wrap">
           <button class="meta-btn" onclick="downloadAllGPX()">📦 Download all GPX</button>
           <button class="meta-btn" id="shareListBtn" onclick="shareList()">🔗 Share list</button>
