@@ -1504,20 +1504,27 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
   } catch(err) {
     btn.disabled = false;
     const isOverpassBusy = /50[24]|429|403/.test(err.message);
-    resultsDiv.innerHTML = isOverpassBusy
-      ? `<div class="no-results">
-          <div class="no-results-icon">⏱️</div>
-          <h3>Map database busy</h3>
-          <p>The OpenStreetMap server is temporarily rate-limited or overloaded.<br>
-             Wait a few seconds and try again, or <strong>reduce the search radius</strong>.</p>
-          <button class="btn-find" style="margin-top:1rem;padding:.75rem 2rem" onclick="document.getElementById('findBtn').click()">🔄 Try again</button>
-        </div>`
-      : `<div class="no-results">
-          <div class="no-results-icon">⚠️</div>
-          <h3>Something went wrong</h3>
-          <p>${err.message}</p>
-          <button class="btn-find" style="margin-top:1rem;padding:.75rem 2rem" onclick="document.getElementById('findBtn').click()">🔄 Try again</button>
-        </div>`;
+    const isTimeout      = /timeout|504/.test(err.message);
+    let icon, title, body;
+    if (isOverpassBusy) {
+      icon  = '⏱️';
+      title = 'Search is taking longer than usual';
+      body  = 'The trail database is a bit busy right now. This usually clears up quickly — just give it another go.';
+    } else if (isTimeout) {
+      icon  = '🌐';
+      title = 'Search timed out';
+      body  = 'The search took too long to complete. Try reducing your search radius, or try again in a moment.';
+    } else {
+      icon  = '🏔️';
+      title = 'Couldn\'t load trails';
+      body  = 'Something interrupted the search. It\'s usually temporary — tap Try again and it should work.';
+    }
+    resultsDiv.innerHTML = `<div class="no-results">
+      <div class="no-results-icon">${icon}</div>
+      <h3>${title}</h3>
+      <p>${body}</p>
+      <button class="btn-find" style="margin-top:1.25rem;padding:.85rem 2.5rem;width:auto;display:inline-block" onclick="document.getElementById('findBtn').click()">🔄 Try again</button>
+    </div>`;
   }
 });
 
