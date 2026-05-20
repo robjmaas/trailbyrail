@@ -7,7 +7,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import secrets
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH  = os.environ.get('DB_PATH', os.path.join(BASE_DIR, 'trailbytrail.db'))
+_default_db = '/data/trailbytrail.db' if os.path.isdir('/data') else os.path.join(BASE_DIR, 'trailbytrail.db')
+DB_PATH  = os.environ.get('DB_PATH', _default_db)
 
 app = Flask(__name__, static_folder=BASE_DIR, static_url_path='')
 
@@ -175,7 +176,7 @@ def api_auth_register():
     db.execute('INSERT INTO user_sessions (token, user_id) VALUES (?,?)', (token, user_id))
     db.commit(); db.close()
     resp = jsonify({'ok': True, 'email': email, 'id': user_id})
-    resp.set_cookie('session_token', token, httponly=True, samesite='Lax', max_age=30*24*3600)
+    resp.set_cookie('session_token', token, httponly=True, samesite='Lax', secure=True, max_age=90*24*3600)
     return resp
 
 @app.route('/api/auth/login', methods=['POST'])
@@ -192,7 +193,7 @@ def api_auth_login():
     db.execute('INSERT INTO user_sessions (token, user_id) VALUES (?,?)', (token, row['id']))
     db.commit(); db.close()
     resp = jsonify({'ok': True, 'email': row['email'], 'id': row['id'], 'is_pro': row['is_pro']})
-    resp.set_cookie('session_token', token, httponly=True, samesite='Lax', max_age=30*24*3600)
+    resp.set_cookie('session_token', token, httponly=True, samesite='Lax', secure=True, max_age=90*24*3600)
     return resp
 
 @app.route('/api/auth/logout', methods=['POST'])
