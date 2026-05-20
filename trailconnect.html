@@ -1267,8 +1267,9 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
       destLat = dc.lat; destLon = dc.lon;
     }
     searchLat = destLat; searchLon = destLon;
-    // Also resolve home if provided (used for journey planning links)
-    if (location && !homeLat) {
+    // Always geocode home from the input — never rely on GPS coordinates here,
+    // as they may come from a different person's device (e.g. opening a share link)
+    if (location) {
       const hc = await geocode(location).catch(() => null);
       if (hc) { homeLat = hc.lat; homeLon = hc.lon; }
     }
