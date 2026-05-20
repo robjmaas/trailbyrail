@@ -1159,14 +1159,17 @@ function generateScatterPoints(lat, lon, distM, n, startDeg = 36) {
 
 // Single Overpass query covering ALL scatter points at once.
 // Returns {trails:[], stops:[]} — just 1 call for all directions combined.
-async function fetchAllScatter(scatterPts, trailRadiusM, stopRadiusM, subtypes) {
+async function fetchAllScatter(scatterPts, trailRadiusM, stopRadiusM, subtypes, ptModes = []) {
   function bb(lat, lon, r) {
     const dLat = r / 111320;
     const dLon = r / (111320 * Math.cos(lat * Math.PI / 180));
     return `${(lat-dLat).toFixed(4)},${(lon-dLon).toFixed(4)},${(lat+dLat).toFixed(4)},${(lon+dLon).toFixed(4)}`;
   }
-  const tr = Math.min(trailRadiusM, 25000);
-  const sR = Math.round(stopRadiusM);
+  const tr  = Math.min(trailRadiusM, 25000);
+  const sR  = Math.round(stopRadiusM);
+  // Bus stops at a tighter radius (walkFromStop area) to limit response size
+  const bR  = Math.min(sR, 8000);
+  const wantBus = ptModes.includes('bus') || ptModes.includes('tram');
 
   const lines = [];
   for (const pt of scatterPts) {
@@ -1176,9 +1179,15 @@ async function fetchAllScatter(scatterPts, trailRadiusM, stopRadiusM, subtypes) 
     if (subtypes.includes('park'))    lines.push(`relation["boundary"="national_park"]["name"](${b});`);
     if (subtypes.includes('cycling')) lines.push(`relation["route"="bicycle"]["name"](${b});`);
     if (subtypes.includes('mtb'))     lines.push(`relation["route"="mtb"]["name"](${b});`);
+    // Train stations (wide radius — the primary PT goal)
     lines.push(`node["railway"="station"](around:${sR},${pt.lat},${pt.lon});`);
     lines.push(`node["railway"="halt"](around:${sR},${pt.lat},${pt.lon});`);
     lines.push(`way["railway"="station"](around:${sR},${pt.lat},${pt.lon});`);
+    // Bus stops (tighter radius, named only to limit count)
+    if (wantBus) {
+      lines.push(`node["highway"="bus_stop"]["name"](around:${bR},${pt.lat},${pt.lon});`);
+      lines.push(`node["amenity"="bus_station"](around:${bR},${pt.lat},${pt.lon});`);
+    }
   }
 
   const q = `[out:json][timeout:45][maxsize:33554432];(\n  ${lines.join('\n  ')}\n);out center body 300;`;
@@ -1192,6 +1201,10 @@ async function fetchAllScatter(scatterPts, trailRadiusM, stopRadiusM, subtypes) 
     if (tags.railway === 'station' || tags.railway === 'halt') {
       stops.push({ id: el.id, lat: c.lat, lon: c.lon,
         name: tags.name || 'Train station', type: 'Train station', icon: '🚂',
+        lines: tags.route_ref || tags.ref || '', distFromHome: 0 });
+    } else if (tags.highway === 'bus_stop' || tags.amenity === 'bus_station') {
+      stops.push({ id: el.id, lat: c.lat, lon: c.lon,
+        name: tags.name || 'Bus stop', type: 'Bus stop', icon: '🚌',
         lines: tags.route_ref || tags.ref || '', distFromHome: 0 });
     } else if (tags.name && !seenNames.has(tags.name)) {
       seenNames.add(tags.name);
@@ -1302,7 +1315,7 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
       // 2 total Overpass calls: home departure stops + one big scatter query
       const [homeStopsResult, scatterResult] = await Promise.all([
         fetchStops(homeLat, homeLon, walkToStop, ptModes).catch(() => []), // all modes → bus fallback
-        fetchAllScatter(scatterPts, trailRadius, stopRadius, trailSubtypes)
+        fetchAllScatter(scatterPts, trailRadius, stopRadius, trailSubtypes, ptModes)
           .catch(() => ({ trails: [], stops: [] })),
       ]);
 
@@ -1356,14 +1369,20 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
           // Local mode: no trains (too far to walk)
           connecting = connecting.filter(s => s.icon !== '🚂');
         } else {
-          // PT journey mode: require at least one train station, then sort trains first
+          // PT journey mode: prefer train stations, fall back to bus if none nearby
           const hasTrain = connecting.some(s => s.icon === '🚂');
-          if (!hasTrain) { connecting = []; }
-          else {
+          if (hasTrain) {
+            // Sort trains first, then by distance
             connecting = connecting.sort((a, b) => {
               const at = a.icon === '🚂' ? 0 : 1, bt = b.icon === '🚂' ? 0 : 1;
               return at !== bt ? at - bt : a.distToTrail - b.distToTrail;
             });
+          } else {
+            // No train within walkFromStop — keep bus/tram stops as fallback leg
+            // (user takes train to area, then local bus to this stop)
+            connecting = connecting.filter(s => s.icon === '🚌' || s.icon === '🚎' || s.icon === '🚋');
+            // Flag as bus-connected so the journey chain can show a bus leg
+            connecting = connecting.map(s => ({...s, viaBus: true}));
           }
         }
       }
@@ -1391,7 +1410,7 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
         <p>${isDestMode
           ? 'No trails with a nearby PT stop found here. Try increasing the Walk from stop radius or searching a different area.'
           : ptJourney > 0
-          ? `No trails found within ${fmt(walkFromStop)} of a train station in the searched area. Try increasing the "Walk from stop to trail" slider, or use By Destination to pick a specific area (e.g. Veluwe, Ardennes).`
+          ? `No trails found within ${fmt(walkFromStop)} of a train station or bus stop in the searched area. Try increasing the "Walk from stop to trail" slider, or use By Destination to pick a specific area (e.g. Veluwe, Ardennes).`
           : isCycling
           ? 'No cycling trails found near a stop in this area.'
           : 'No trails found near a local stop. Try increasing the radius.'
@@ -1567,6 +1586,7 @@ function renderCard(trail, idx) {
         const dep = lastPtJourney > 0 ? trail.departureStop : null;
         const trainDist = dep && best ? Math.round(dist(dep.lat, dep.lon, best.lat, best.lon)) : lastPtJourney;
         const depIsNotTrain = dep && dep.icon !== '🚂';
+        const arrIsBus = best && best.viaBus;
         return dep ? `
       <div class="jnode">
         <div class="jicon jicon-home">🏠</div>
@@ -1588,7 +1608,7 @@ function renderCard(trail, idx) {
       <div class="jnode">
         <div class="jicon jicon-stop">${best.icon}</div>
         <div class="jlabel">${best.name}</div>
-        <div class="jsub">${best.type}</div>
+        <div class="jsub">${arrIsBus ? '🚌 bus from station' : best.type}</div>
       </div>
       <div class="jleg">
         <div class="jline"></div>
