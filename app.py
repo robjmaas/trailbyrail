@@ -411,15 +411,61 @@ def api_graphhopper():
     key = cfg('GRAPHHOPPER_KEY')
     if not key:
         return jsonify({'error': 'GRAPHHOPPER_KEY not configured'}), 503
-    data = request.json
-    url  = (f"https://graphhopper.com/api/1/route"
-            f"?point={data['lat']},{data['lon']}"
-            f"&algorithm=round_trip"
-            f"&round_trip.distance={int(data.get('distance', 10000))}"
-            f"&vehicle={data.get('vehicle', 'foot')}"
-            f"&locale=en&points_encoded=false"
-            f"&key={key}")
-    r = requests.get(url, headers=HEADERS, timeout=20)
+    data    = request.json
+    profile = data.get('vehicle', 'hike')   # hike > foot: prefers designated trails
+    is_foot  = profile in ('foot', 'hike')
+    is_cycle = profile in ('bike', 'mtb', 'racingbike')
+
+    body = {
+        'points':         [[data['lon'], data['lat']]],  # GH expects [lon, lat]
+        'profile':        profile,
+        'algorithm':      'round_trip',
+        'round_trip':     {'distance': int(data.get('distance', 10000)), 'seed': 0},
+        'locale':         'en',
+        'points_encoded': False,
+        'ch.disable':     True,   # required for custom_model
+    }
+
+    # For foot/hike: strongly prefer tracks, paths and unpaved surfaces
+    if is_foot:
+        body['custom_model'] = {
+            'priority': [
+                {'if': 'road_class == TRACK',    'multiply_by': 3.0},
+                {'if': 'road_class == FOOTWAY',  'multiply_by': 2.5},
+                {'if': 'road_class == BRIDLEWAY','multiply_by': 2.5},
+                {'if': 'road_class == PATH',     'multiply_by': 3.0},
+                {'if': 'road_class == RESIDENTIAL || road_class == SERVICE || road_class == UNCLASSIFIED',
+                 'multiply_by': 0.5},
+                {'if': 'road_class == TERTIARY', 'multiply_by': 0.3},
+                {'if': 'road_class == SECONDARY','multiply_by': 0.15},
+                {'if': 'road_class == PRIMARY || road_class == TRUNK || road_class == MOTORWAY',
+                 'multiply_by': 0.02},
+            ]
+        }
+
+    # For cycling: strongly prefer cycleways, tracks and paths over roads
+    if is_cycle:
+        body['custom_model'] = {
+            'priority': [
+                {'if': 'road_class == CYCLEWAY',  'multiply_by': 3.0},
+                {'if': 'road_class == TRACK',     'multiply_by': 2.5},
+                {'if': 'road_class == PATH',      'multiply_by': 2.0},
+                {'if': 'road_class == BRIDLEWAY', 'multiply_by': 1.8},
+                {'if': 'road_class == RESIDENTIAL || road_class == SERVICE || road_class == UNCLASSIFIED',
+                 'multiply_by': 0.5},
+                {'if': 'road_class == TERTIARY',  'multiply_by': 0.4},
+                {'if': 'road_class == SECONDARY', 'multiply_by': 0.2},
+                {'if': 'road_class == PRIMARY || road_class == TRUNK || road_class == MOTORWAY',
+                 'multiply_by': 0.05},
+            ]
+        }
+
+    r = requests.post(
+        f'https://graphhopper.com/api/1/route?key={key}',
+        json=body,
+        headers={**HEADERS, 'Content-Type': 'application/json'},
+        timeout=25,
+    )
     r.raise_for_status()
     return Response(r.content, content_type='application/json')
 
