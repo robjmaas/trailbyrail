@@ -1457,7 +1457,12 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
              Wait a few seconds and try again, or <strong>reduce the search radius</strong>.</p>
           <button class="btn-find" style="margin-top:1rem;padding:.75rem 2rem" onclick="document.getElementById('findBtn').click()">🔄 Try again</button>
         </div>`
-      : `<div class="error">⚠️ ${err.message}</div>`;
+      : `<div class="no-results">
+          <div class="no-results-icon">⚠️</div>
+          <h3>Something went wrong</h3>
+          <p>${err.message}</p>
+          <button class="btn-find" style="margin-top:1rem;padding:.75rem 2rem" onclick="document.getElementById('findBtn').click()">🔄 Try again</button>
+        </div>`;
   }
 });
 
