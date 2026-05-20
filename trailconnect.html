@@ -1020,6 +1020,71 @@ function generateScatterPoints(lat, lon, distM, n, startDeg = 36) {
   });
 }
 
+// One combined Overpass query per scatter point: trails (bbox) + train stations (around).
+// Returns {trails:[], stops:[]} — halves total Overpass calls vs. two separate fetches.
+async function fetchTrailsAndTrainStops(lat, lon, trailRadiusM, stopRadiusM, subtypes) {
+  const tr = Math.min(trailRadiusM, 25000);
+  const dLat = tr / 111320;
+  const dLon = tr / (111320 * Math.cos(lat * Math.PI / 180));
+  const bb   = `${(lat-dLat).toFixed(4)},${(lon-dLon).toFixed(4)},${(lat+dLat).toFixed(4)},${(lon+dLon).toFixed(4)}`;
+  const sR   = Math.round(stopRadiusM);
+
+  const trailLines = [
+    subtypes.includes('hiking')  && `relation["route"="hiking"]["name"](${bb});`,
+    subtypes.includes('running') && `relation["route"="running"]["name"](${bb});`,
+    subtypes.includes('nature')  && `way["leisure"="nature_reserve"]["name"](${bb});\n  relation["leisure"="nature_reserve"]["name"](${bb});`,
+    subtypes.includes('park')    && `way["boundary"="national_park"]["name"](${bb});\n  relation["boundary"="national_park"]["name"](${bb});`,
+    subtypes.includes('cycling') && `relation["route"="bicycle"]["name"](${bb});`,
+    subtypes.includes('mtb')     && `relation["route"="mtb"]["name"](${bb});`,
+  ].filter(Boolean).join('\n  ');
+
+  const stopLines = [
+    `node["railway"="station"](around:${sR},${lat},${lon});`,
+    `node["railway"="halt"](around:${sR},${lat},${lon});`,
+    `way["railway"="station"](around:${sR},${lat},${lon});`,
+  ].join('\n  ');
+
+  const q = `[out:json][timeout:35][maxsize:16777216];(\n  ${trailLines}\n  ${stopLines}\n);out center body 150;`;
+  const data = await overpass(q);
+
+  const trails = [], stops = [];
+  const seenNames = new Set();
+
+  for (const el of (data.elements || [])) {
+    const tags = el.tags || {};
+    const c    = el.center || { lat: el.lat, lon: el.lon };
+    if (!c?.lat) continue;
+
+    if (tags.railway === 'station' || tags.railway === 'halt') {
+      stops.push({
+        id: el.id, lat: c.lat, lon: c.lon,
+        name: tags.name || 'Train station',
+        type: 'Train station', icon: '🚂',
+        lines: tags.route_ref || tags.ref || '',
+        distFromHome: dist(lat, lon, c.lat, c.lon),
+      });
+    } else if (tags.name && !seenNames.has(tags.name)) {
+      seenNames.add(tags.name);
+      let type = 'nature', label = 'Nature Area', icon = '🌿', wtType = null;
+      if      (tags.route === 'hiking')           { type='hiking';  label='Hiking Trail';   icon='🥾'; wtType='hiking'; }
+      else if (tags.route === 'running')          { type='hiking';  label='Running Route';  icon='🏃'; }
+      else if (tags.route === 'bicycle')          { type='cycling'; label='Cycling Route';  icon='🚴'; wtType='cycling'; }
+      else if (tags.route === 'mtb')              { type='cycling'; label='MTB Route';      icon='🚵'; wtType='mtb'; }
+      else if (tags.boundary === 'national_park') { type='nature';  label='National Park';  icon='🌲'; }
+      else if (tags.leisure === 'nature_reserve') { type='nature';  label='Nature Reserve'; icon='🌿'; }
+      trails.push({
+        id: el.id, name: tags.name,
+        sub: tags.network || tags.operator || tags.ref || null,
+        trailDist: tags.distance || tags['route:km'] || null,
+        difficulty: null, isLoop: false,
+        type, label, icon, lat: c.lat, lon: c.lon,
+        source: 'osm', wtType, oda_url: null, elevGain: null,
+      });
+    }
+  }
+  return { trails, stops };
+}
+
 document.getElementById('searchForm').addEventListener('submit', async e => {
   e.preventDefault();
 
@@ -1086,31 +1151,32 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
       // No large Overpass scan needed. Each point uses fast small-radius queries.
       // Only trails with a train station within walkFromStop are kept in results.
 
-      // Home departure stops (train only)
-      homeStops = await fetchStops(homeLat, homeLon, walkToStop, ['train']);
-
       const searchDist  = Math.min(ptJourney, 200000) * 0.7;
-      const trailRadius = Math.max(walkFromStop, 15000);   // at least 15km for trails
-      const stopRadius  = Math.max(walkFromStop, 10000);   // at least 10km for train stops
-      // 3 points (6 Overpass calls) — backend gap 1.5s = ~9s spread, well within limits
-      const scatterPts  = generateScatterPoints(homeLat, homeLon, searchDist, 3);
+      const trailRadius = Math.max(walkFromStop, 15000);   // at least 15km
+      const stopRadius  = Math.max(walkFromStop, 10000);   // at least 10km
+      // 3 scatter points × 1 combined query each = 3 total Overpass calls (+ 1 home stops)
+      const scatterPts = generateScatterPoints(homeLat, homeLon, searchDist, 3);
 
       console.log('[TrailbyRail] scatter at', (searchDist/1000).toFixed(0)+'km,',
         scatterPts.map(p => `(${p.lat.toFixed(2)},${p.lon.toFixed(2)})`).join(' '));
 
-      const scatterResults = await Promise.all(scatterPts.map(pt => Promise.all([
-        fetchTrails(pt.lat, pt.lon, trailRadius, trailSubtypes),
-        fetchOutdooractive(pt.lat, pt.lon, trailRadius, trailSubtypes).catch(() => []),
-        fetchStops(pt.lat, pt.lon, stopRadius, ['train']), // train-only: smaller query
-      ])));
+      // Fire all 4 in parallel — backend lock spaces them at 1.5s intervals (4 × 1.5 = 6s spread)
+      const [homeStopsResult, ...scatterData] = await Promise.all([
+        fetchStops(homeLat, homeLon, walkToStop, ['train']),
+        ...scatterPts.map(pt =>
+          fetchTrailsAndTrainStops(pt.lat, pt.lon, trailRadius, stopRadius, trailSubtypes)
+            .catch(() => ({ trails: [], stops: [] }))
+        ),
+      ]);
 
+      homeStops = homeStopsResult;
       osmTrails = []; odaTrails = []; stops = []; customTrails = [];
       const seenT = new Set(), seenS = new Set();
-      for (const [sOsm, sOda, sStops] of scatterResults) {
-        for (const t of sOsm) { if (!seenT.has(t.id)) { seenT.add(t.id); osmTrails.push(t); } }
-        for (const t of sOda) { if (!seenT.has(t.id)) { seenT.add(t.id); odaTrails.push(t); } }
-        for (const s of sStops) { if (!seenS.has(s.id)) { seenS.add(s.id); stops.push(s); } }
+      for (const { trails: zTrails, stops: zStops } of scatterData) {
+        for (const t of zTrails) { if (!seenT.has(t.id)) { seenT.add(t.id); osmTrails.push(t); } }
+        for (const s of zStops)  { if (!seenS.has(s.id)) { seenS.add(s.id); stops.push(s); } }
       }
+      console.log('[TrailbyRail] trails found:', osmTrails.length, '| train stops:', stops.length);
       customTrails = await fetchCustomRoutes(homeLat, homeLon, 50000);
 
     } else {
