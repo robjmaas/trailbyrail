@@ -211,6 +211,9 @@ details.api-settings[open] summary{margin-bottom:.85rem}
 .filter-bar label{color:#fff;font-size:.82rem;font-weight:600;display:flex;align-items:center;gap:.35rem;white-space:nowrap}
 .filter-bar input[type=number]{width:70px;padding:.3rem .5rem;border-radius:8px;border:1.5px solid var(--moss);font-size:.85rem;background:var(--cloud)}
 .filter-bar input[type=checkbox]{width:16px;height:16px;cursor:pointer}
+/* ── Duration row ── */
+.duration-row{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;padding:.55rem .85rem;background:linear-gradient(135deg,rgba(58,125,82,.1),rgba(13,36,22,.06));border-radius:10px;border:1px solid rgba(58,125,82,.2);margin:.6rem 0;font-size:.82rem;font-weight:600;color:var(--forest-dark)}
+.dur-sep{color:var(--moss);opacity:.5;font-weight:400}
 /* ── Done badge ── */
 .trail-card.done-trail{opacity:.8;border-left-color:var(--moss)!important}
 .act-btn.done-active{background:var(--moss);color:white;border-color:var(--moss)}
@@ -774,6 +777,14 @@ function esc(s) { return s.replace(/"/g, '&quot;'); }
 function fmt(m) {
   m = Math.round(m);
   return m < 1000 ? m + 'm' : (m / 1000).toFixed(m < 5000 ? 1 : 0) + 'km';
+}
+
+function fmtMins(m) {
+  if (!m || m <= 0) return null;
+  m = Math.round(m);
+  if (m < 60) return `${m}min`;
+  const h = Math.floor(m / 60), min = m % 60;
+  return min ? `${h}h ${min}min` : `${h}h`;
 }
 
 function updateSlider(id, valId) {
@@ -1397,7 +1408,39 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
       }
 
       connecting = connecting.sort((a, b) => a.distToTrail - b.distToTrail).slice(0, 4);
-      return {...trail, stops: connecting, departureStop};
+
+      // ── Duration estimates ────────────────────────────────────────────────────
+      // Walk speed: 5 km/h = 83.3 m/min  |  Cycle speed: 15 km/h = 250 m/min
+      // Train speed: ~80 km/h = 1333 m/min
+      const moveSpeedMpMin = isCycling ? 250 : (5000 / 60);
+      const best0 = connecting[0];
+      let journeyMins = null;
+      if (best0) {
+        if (ptJourney > 0 && departureStop) {
+          const trainDist = dist(departureStop.lat, departureStop.lon, best0.lat, best0.lon);
+          journeyMins = Math.round(
+            departureStop.distFromHome / moveSpeedMpMin +
+            trainDist / (80000 / 60) +
+            best0.distToTrail / moveSpeedMpMin
+          );
+        } else if (!isDestMode) {
+          // Local mode: walk home→stop→trailhead
+          journeyMins = Math.round(
+            best0.distFromHome / moveSpeedMpMin +
+            best0.distToTrail / moveSpeedMpMin
+          );
+        }
+        // In destination mode journeyMins stays null (train portion unknown)
+      }
+      let trailMins = null;
+      if (trail.trailDist) {
+        const trailDistM = parseFloat(trail.trailDist) * 1000;
+        if (!isNaN(trailDistM) && trailDistM > 0) {
+          trailMins = Math.round(trailDistM / moveSpeedMpMin);
+        }
+      }
+
+      return {...trail, stops: connecting, departureStop, journeyMins, trailMins};
     }).filter(t => t.stops.length > 0)
       .sort((a, b) => a.stops[0].distToTrail - b.stops[0].distToTrail);
 
@@ -1441,6 +1484,7 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
       <div class="filter-bar" id="filterBar">
         <label>Min km <input type="number" id="filterMinKm" min="0" step="0.5" placeholder="0" oninput="applyFilters()"></label>
         <label>Max km <input type="number" id="filterMaxKm" min="0" step="0.5" placeholder="∞" oninput="applyFilters()"></label>
+        <label title="Max travel time to trailhead">⏱️ Max travel <input type="number" id="filterMaxTravel" min="0" step="0.5" placeholder="∞" style="width:60px" oninput="applyFilters()"> h</label>
         <label><input type="checkbox" id="filterHideCompleted" onchange="applyFilters()"> Hide completed</label>
       </div>
       <div class="results-grid" id="resultsGrid">
@@ -1658,6 +1702,16 @@ function renderCard(trail, idx) {
       })()}
 
     </div>
+
+    ${(() => {
+      const jStr = fmtMins(trail.journeyMins);
+      const tStr = fmtMins(trail.trailMins);
+      if (!jStr && !tStr) return '';
+      const parts = [];
+      if (jStr) parts.push(`<span>⏱️ ~${jStr} to trailhead</span>`);
+      if (tStr) parts.push(`<span>${trail.icon} ~${tStr} on trail</span>`);
+      return `<div class="duration-row">${parts.join('<span class="dur-sep">·</span>')}</div>`;
+    })()}
 
     <div id="weather-${idx}"></div>
 
@@ -2012,6 +2066,8 @@ async function fetchWeatherForCard(idx, lat, lon) {
 function applyFilters() {
   const minKm = parseFloat(document.getElementById('filterMinKm')?.value) || 0;
   const maxKm = parseFloat(document.getElementById('filterMaxKm')?.value) || Infinity;
+  const maxTravelH = parseFloat(document.getElementById('filterMaxTravel')?.value) || Infinity;
+  const maxTravelMins = isFinite(maxTravelH) ? maxTravelH * 60 : Infinity;
   const hideCompleted = document.getElementById('filterHideCompleted')?.checked || false;
   const grid = document.getElementById('resultsGrid');
   if (!grid) return;
@@ -2021,7 +2077,9 @@ function applyFilters() {
     if (!card) return;
     const km = parseFloat(t.trailDist) || 0;
     const done = doneTrails.has(t.name);
-    const show = (!minKm || km >= minKm) && (!isFinite(maxKm) || km <= maxKm) && !(hideCompleted && done);
+    // Travel filter: only exclude if journeyMins is known AND exceeds the limit
+    const travelOk = !isFinite(maxTravelMins) || !t.journeyMins || t.journeyMins <= maxTravelMins;
+    const show = (!minKm || km >= minKm) && (!isFinite(maxKm) || km <= maxKm) && travelOk && !(hideCompleted && done);
     card.style.display = show ? '' : 'none';
     if (show) visible++;
   });
