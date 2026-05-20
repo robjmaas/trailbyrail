@@ -526,6 +526,7 @@ let homeLat, homeLon, currentTrails = [], selectedCoords = null;
 let searchMode = 'home'; // 'home' | 'destination'
 let destLat, destLon, selectedDestCoords = null;
 let pendingTrailId = null, pendingTrailName = null; // deep-link target
+let shareParamsActive = false; // blocks getLocation() from overwriting shared address
 let lastPtJourney = 0; // metres — stored so renderCard can use it
 let doneTrails = new Set(JSON.parse(localStorage.getItem('doneTrails') || '[]'));
 let reviewsLoaded = {};
@@ -1918,16 +1919,15 @@ async function getLocation(force = false) {
   const input = document.getElementById('location');
   const btn = document.getElementById('locationBtn');
   if (!navigator.geolocation) { input.placeholder = 'Enter your address'; return; }
+  // Share link is active — skip auto-detect unless user explicitly clicks 📡
+  if (shareParamsActive && !force) return;
   input.placeholder = 'Detecting location…';
   btn.disabled = true;
   navigator.geolocation.getCurrentPosition(
     async pos => {
+      if (shareParamsActive && !force) { btn.disabled = false; return; }
       homeLat = pos.coords.latitude; homeLon = pos.coords.longitude;
-      // Don't overwrite if the field already has content (e.g. from a share link),
-      // unless the user explicitly clicked the 📡 button (force=true).
-      if (force || !input.value.trim()) {
-        input.value = await reverseGeocode(homeLat, homeLon);
-      }
+      input.value = await reverseGeocode(homeLat, homeLon);
       btn.disabled = false;
     },
     () => { input.placeholder = 'e.g. Amsterdam, Breda, Utrecht…'; btn.disabled = false; },
@@ -2290,6 +2290,7 @@ async function checkShortLinkAndAutoSearch() {
 
 function applyShareParams(params) {
   if (!params.location && !params.destination) return;
+  shareParamsActive = true;
   if (params.searchMode === 'destination' && params.destination) {
     setSearchMode('destination');
     destInput.value = params.destination;
