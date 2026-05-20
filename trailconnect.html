@@ -75,6 +75,8 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
 .results-grid{display:grid;gap:1.5rem}
 .trail-card{background:var(--cream);border-radius:20px;padding:2rem;box-shadow:0 8px 30px rgba(0,0,0,.35);border-left:6px solid var(--moss);transition:all .3s ease;animation:slideUp .5s ease-out backwards}
 @keyframes slideUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+@keyframes cardPing{0%{box-shadow:0 0 0 0 rgba(240,192,96,.7),0 8px 30px rgba(0,0,0,.35);border-left-color:var(--sunrise)}70%{box-shadow:0 0 0 14px rgba(240,192,96,0),0 8px 30px rgba(0,0,0,.35);border-left-color:var(--sunrise)}100%{box-shadow:0 8px 30px rgba(0,0,0,.35);border-left-color:var(--moss)}}
+.trail-card.trail-highlight{animation:cardPing 2s ease-out forwards!important;border-left-color:var(--sunrise)!important}
 .trail-card:hover{transform:translateX(6px);box-shadow:0 12px 40px var(--shadow);border-left-color:var(--sunrise)}
 .trail-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1.25rem;gap:1rem}
 .trail-name{font-family:'Righteous',cursive;font-size:1.35rem;color:var(--forest-dark);margin-bottom:.2rem}
@@ -401,6 +403,7 @@ details.api-settings[open] summary{margin-bottom:.85rem}
 let homeLat, homeLon, currentTrails = [], selectedCoords = null;
 let searchMode = 'home'; // 'home' | 'destination'
 let destLat, destLon, selectedDestCoords = null;
+let pendingTrailId = null, pendingTrailName = null; // deep-link target
 let lastPtJourney = 0; // metres — stored so renderCard can use it
 let doneTrails = new Set(JSON.parse(localStorage.getItem('doneTrails') || '[]'));
 let reviewsLoaded = {};
@@ -1293,6 +1296,7 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
         ${results.map((t, i) => renderCard(t, i)).join('')}
       </div>`;
     results.forEach((t, i) => fetchWeatherForCard(i, t.lat, t.lon));
+    highlightPendingTrail();
 
   } catch(err) {
     btn.disabled = false;
@@ -1558,29 +1562,35 @@ function renderCard(trail, idx) {
 const loopResults = {};
 
 async function shareTrail(idx) {
-  const t = currentTrails[idx];
-  const best = t.stops[0];
-  const mapsUrl = `https://www.google.com/maps?q=${t.lat},${t.lon}`;
-  const dist = t.trailDist ? ` · ${t.trailDist}km` : '';
-  const stopLine = best ? `\nNearest stop: ${best.icon} ${best.name} (${fmt(best.distToTrail)} away)` : '';
-  const text = `${t.icon} ${t.name}${dist}\n${t.label}${stopLine}\n${mapsUrl}`;
+  const t   = currentTrails[idx];
   const btn = document.getElementById(`shareBtn-${idx}`);
 
+  // Build deep link: full search params + trail identity so the friend lands on this card
+  const params = {
+    location:      document.getElementById('location').value.trim(),
+    activity:      document.getElementById('activity').value,
+    walkToStop:    document.getElementById('walkToStop').value,
+    walkFromStop:  document.getElementById('walkFromStop').value,
+    ptModes:       getChecked('ptMode').join(','),
+    trailSubtypes: getChecked('trailType').join(','),
+    trailId:       t.id,
+    trailName:     t.name,
+  };
+  const hash = '#share=' + encodeURIComponent(JSON.stringify(params));
+  const url  = location.origin + location.pathname + hash;
+
   if (navigator.share) {
-    try {
-      await navigator.share({ title: t.name, text, url: mapsUrl });
-    } catch {}
+    try { await navigator.share({ title: t.name, text: `${t.icon} ${t.name}`, url }); } catch {}
     return;
   }
 
-  // Fallback: copy to clipboard
   try {
-    await navigator.clipboard.writeText(text);
+    await navigator.clipboard.writeText(url);
     const orig = btn.textContent;
-    btn.textContent = '✅ Copied!';
+    btn.textContent = '✅ Link copied!';
     setTimeout(() => { btn.textContent = orig; }, 2000);
   } catch {
-    prompt('Copy this trail info:', text);
+    prompt('Copy this link to share:', url);
   }
 }
 
@@ -2021,6 +2031,25 @@ async function downloadAllGPX() {
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
 }
 
+// ── Deep-link highlight ───────────────────────────────────────────────────────
+function highlightPendingTrail() {
+  if (!pendingTrailId && !pendingTrailName) return;
+  const idx = currentTrails.findIndex(t =>
+    (pendingTrailId   && String(t.id) === String(pendingTrailId)) ||
+    (pendingTrailName && t.name === pendingTrailName)
+  );
+  pendingTrailId = null; pendingTrailName = null;
+  if (idx < 0) return;
+  const card = document.getElementById(`card-${idx}`);
+  if (!card) return;
+  // Small delay so the browser has painted the cards before scrolling
+  setTimeout(() => {
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    card.classList.add('trail-highlight');
+    setTimeout(() => card.classList.remove('trail-highlight'), 3000);
+  }, 300);
+}
+
 // ── Share curated list ────────────────────────────────────────────────────────
 function buildShareHash() {
   const params = {
@@ -2069,6 +2098,8 @@ function checkHashAndAutoSearch() {
       const subs = params.trailSubtypes.split(',');
       document.querySelectorAll('input[name="trailType"]').forEach(el => { el.checked = subs.includes(el.value); });
     }
+    if (params.trailId)   pendingTrailId   = params.trailId;
+    if (params.trailName) pendingTrailName = params.trailName;
     document.getElementById('searchForm').dispatchEvent(new Event('submit'));
   } catch { /* ignore malformed hash */ }
 }
