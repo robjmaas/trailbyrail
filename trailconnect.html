@@ -1266,6 +1266,7 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
   const isDestMode = searchMode === 'destination';
   const combinedRadius = isDestMode ? walkFromStop : walkToStop + ptJourney + walkFromStop;
 
+  resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
   resultsDiv.innerHTML = `<div class="loading">
     <div class="loading-spinner">🔄</div>
     <div class="loading-msg">${isDestMode ? `Finding trails near <strong>${destLabel}</strong>…` : 'Finding trails reachable by public transport…'}</div>
