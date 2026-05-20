@@ -8,7 +8,8 @@ import secrets
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 _default_db = '/data/trailbytrail.db' if os.path.isdir('/data') else os.path.join(BASE_DIR, 'trailbytrail.db')
-DB_PATH  = os.environ.get('DB_PATH', _default_db)
+DB_PATH      = os.environ.get('DB_PATH', _default_db)
+FREE_SEARCHES = int(os.environ.get('FREE_SEARCHES', '5'))
 
 app = Flask(__name__, static_folder=BASE_DIR, static_url_path='')
 
@@ -89,6 +90,16 @@ def init_db():
         data       TEXT    NOT NULL,
         created_at TEXT    DEFAULT (datetime('now'))
     )''')
+    db.execute('''CREATE TABLE IF NOT EXISTS guest_searches (
+        ip         TEXT PRIMARY KEY,
+        count      INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT    DEFAULT (datetime('now'))
+    )''')
+    # Migration: add search_count to users if it doesn't exist yet
+    try:
+        db.execute('ALTER TABLE users ADD COLUMN search_count INTEGER DEFAULT 0')
+    except Exception:
+        pass
     db.commit()
     db.close()
 
@@ -297,6 +308,30 @@ def api_saved_searches_post():
         )
     db.commit(); db.close()
     return jsonify({'ok': True})
+
+# ── Search tracking ──────────────────────────────────────────────────────────
+
+@app.route('/api/track-search', methods=['POST'])
+def api_track_search():
+    user = get_current_user()
+    ip   = client_ip()
+    db   = get_db()
+    if user:
+        db.execute('UPDATE users SET search_count = search_count + 1 WHERE id=?', (user['id'],))
+        row   = db.execute('SELECT search_count FROM users WHERE id=?', (user['id'],)).fetchone()
+        count = row['search_count'] if row else 1
+        db.commit(); db.close()
+        return jsonify({'count': count, 'limit': None, 'requires_signup': False})
+    else:
+        db.execute('''
+            INSERT INTO guest_searches (ip, count, updated_at) VALUES (?, 1, datetime('now'))
+            ON CONFLICT(ip) DO UPDATE SET count = count + 1, updated_at = datetime('now')
+        ''', (ip,))
+        row   = db.execute('SELECT count FROM guest_searches WHERE ip=?', (ip,)).fetchone()
+        count = row['count'] if row else 1
+        db.commit(); db.close()
+        return jsonify({'count': count, 'limit': FREE_SEARCHES,
+                        'requires_signup': count > FREE_SEARCHES})
 
 # ── Global error handlers — always return JSON, never HTML ───────────────────
 

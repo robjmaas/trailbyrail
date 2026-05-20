@@ -264,6 +264,17 @@ details.api-settings[open] summary{margin-bottom:.85rem}
     </div>
   </div>
 
+  <!-- Search gate modal -->
+  <div id="searchGateModal" style="display:none" class="auth-overlay">
+    <div class="auth-box">
+      <div style="font-size:2.5rem;margin-bottom:.5rem">🥾</div>
+      <h2>Keep exploring</h2>
+      <p>You've used your <strong id="gateFreeCount">5</strong> free searches.<br>Create a free account to keep discovering trails.</p>
+      <button class="auth-submit" onclick="closeGateAndAuth('register')">Create free account</button>
+      <button class="auth-toggle" onclick="closeGateAndAuth('login')">Already have an account? Log in</button>
+    </div>
+  </div>
+
   <div class="search-card">
     <form class="search-form" id="searchForm">
       <div class="input-group">
@@ -1092,6 +1103,17 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
   const resultsDiv = document.getElementById('results');
 
   btn.disabled = true;
+
+  // ── Search gate (guest limit) ──────────────────────────────────────────────
+  if (!currentUser) {
+    const tr = await fetch('/api/track-search', {method:'POST'}).then(r=>r.json()).catch(()=>null);
+    if (tr?.requires_signup) {
+      btn.disabled = false;
+      document.getElementById('gateFreeCount').textContent = tr.limit;
+      document.getElementById('searchGateModal').style.display = 'flex';
+      return;
+    }
+  }
 
   // ── Resolve search centre ──────────────────────────────────────────────────
   let searchLat, searchLon;
@@ -2054,6 +2076,13 @@ function checkHashAndAutoSearch() {
 // ── Auth UI ───────────────────────────────────────────────────────────────────
 
 let authMode = 'login'; // 'login' | 'register'
+let pendingSearchAfterAuth = false;
+
+function closeGateAndAuth(mode) {
+  document.getElementById('searchGateModal').style.display = 'none';
+  pendingSearchAfterAuth = true;
+  showAuthModal(mode);
+}
 
 function showAuthModal(mode) {
   authMode = mode || 'login';
@@ -2107,6 +2136,10 @@ async function submitAuth() {
     closeAuthModal();
     await syncLocalDataToServer();
     await loadServerDoneTrails();
+    if (pendingSearchAfterAuth) {
+      pendingSearchAfterAuth = false;
+      document.getElementById('searchForm').dispatchEvent(new Event('submit'));
+    }
   } catch(e) {
     errorEl.textContent = e.message;
   } finally {
