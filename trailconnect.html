@@ -271,6 +271,23 @@ details.api-settings[open] summary{margin-bottom:.85rem}
 /* ── Done badge ── */
 .trail-card.done-trail{opacity:.8;border-left-color:var(--moss)!important}
 .act-btn.done-active{background:var(--moss);color:white;border-color:var(--moss)}
+/* ── Trip presets ── */
+.preset-chips{display:flex;gap:.6rem}
+.preset-chip{flex:1;display:flex;flex-direction:column;align-items:center;gap:.18rem;padding:.75rem .4rem;border:2px solid var(--moss);border-radius:14px;cursor:pointer;text-align:center;background:var(--cloud);transition:all .2s;user-select:none}
+.preset-chip input[type=radio]{display:none}
+.preset-chip:has(input:checked){background:linear-gradient(135deg,var(--moss),var(--forest-med));border-color:var(--moss);box-shadow:0 3px 10px rgba(58,125,82,.4)}
+.preset-chip-icon{font-size:1.55rem;line-height:1}
+.preset-chip-label{font-weight:700;font-size:.88rem;color:var(--forest-dark);line-height:1.2}
+.preset-chip:has(input:checked) .preset-chip-label{color:#fff}
+.preset-chip-sub{font-size:.7rem;color:var(--moss);line-height:1.2}
+.preset-chip:has(input:checked) .preset-chip-sub{color:rgba(255,255,255,.78)}
+.dest-opt-label{font-weight:400;font-size:.82rem;color:var(--moss);text-transform:none;letter-spacing:0}
+/* ── More-actions row ── */
+.more-actions{display:none;margin-top:.5rem;padding-top:.75rem;border-top:1px dashed rgba(74,124,89,.2)}
+.more-actions.open{display:flex;flex-wrap:wrap;gap:.5rem}
+@media(max-width:620px){.more-actions.open{overflow-x:auto;flex-wrap:nowrap;padding-bottom:.4rem;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.more-actions.open::-webkit-scrollbar{display:none}
+.more-actions.open .act-btn{flex-shrink:0}}
 /* ── Reviews ── */
 .review-panel{display:none;margin-top:1rem;padding:1.1rem;background:var(--cloud);border-radius:12px;border:2px solid var(--moss);animation:fadeIn .25s ease-out}
 .review-panel.open{display:block}
@@ -381,28 +398,19 @@ details.api-settings[open] summary{margin-bottom:.85rem}
 
         <div class="guide-step">
           <div class="guide-step-num">2</div>
-          <div class="guide-step-icon">🏠</div>
+          <div class="guide-step-icon">⚡</div>
           <div class="guide-step-body">
-            <h3>Near home — local trails</h3>
-            <p>The default mode. Set <b>Walk to stop</b> and <b>Walk from stop to trail</b> to control how far you're willing to walk. Keep the <b>Train Journey</b> slider at 0 for purely local results.</p>
+            <h3>Pick a trip type</h3>
+            <p><b>Quick escape</b> finds trails walkable or cyclable from home with no train needed. <b>Half-day</b> searches within about 1–2 hours by train. <b>Full day</b> goes further. The right choice for most day trips is Half-day.</p>
           </div>
         </div>
 
         <div class="guide-step">
           <div class="guide-step-num">3</div>
-          <div class="guide-step-icon">🚂</div>
-          <div class="guide-step-body">
-            <h3>Train journey — go further</h3>
-            <p>Slide <b>Train Journey Distance</b> to the right to find trails further away reachable by train. The further you slide, the wider the search radius around potential destinations. Results show the full journey chain: home → station → train → trailhead.</p>
-          </div>
-        </div>
-
-        <div class="guide-step">
-          <div class="guide-step-num">4</div>
           <div class="guide-step-icon">🗺️</div>
           <div class="guide-step-body">
-            <h3>Search by destination</h3>
-            <p>Switch to <b>By destination</b> to search around a specific place — useful when you already know roughly where you want to go. Your home address is still used for journey planning links.</p>
+            <h3>Destination — optional</h3>
+            <p>If you have a specific area in mind (e.g. <b>Veluwe</b>, <b>Black Forest</b>, <b>Snowdonia</b>), type it in the destination field and the search focuses on trails there. Leave it blank to discover trails anywhere within reach.</p>
           </div>
         </div>
 
@@ -489,55 +497,79 @@ details.api-settings[open] summary{margin-bottom:.85rem}
         <div class="chip-row" id="trailTypeChips"></div>
       </div>
 
-      <div class="mode-toggle">
-        <button type="button" class="mode-btn active" id="modeNearHome" onclick="setSearchMode('home')">🏠 Near home</button>
-        <button type="button" class="mode-btn" id="modeDestination" onclick="setSearchMode('destination')">🗺️ By destination</button>
+      <!-- ── Trip presets ── -->
+      <div class="input-group">
+        <label>How far do you want to go?</label>
+        <div class="preset-chips">
+          <label class="preset-chip">
+            <input type="radio" name="tripPreset" value="quick" onchange="setPreset('quick')">
+            <span class="preset-chip-icon">⚡</span>
+            <span class="preset-chip-label">Quick escape</span>
+            <span class="preset-chip-sub">Local, no train</span>
+          </label>
+          <label class="preset-chip">
+            <input type="radio" name="tripPreset" value="halfday" checked onchange="setPreset('halfday')">
+            <span class="preset-chip-icon">🌄</span>
+            <span class="preset-chip-label">Half-day</span>
+            <span class="preset-chip-sub">1–2h by train</span>
+          </label>
+          <label class="preset-chip">
+            <input type="radio" name="tripPreset" value="fullday" onchange="setPreset('fullday')">
+            <span class="preset-chip-icon">🏕️</span>
+            <span class="preset-chip-label">Full day</span>
+            <span class="preset-chip-sub">Go further</span>
+          </label>
+        </div>
       </div>
 
-      <div class="input-group" id="destinationGroup" style="display:none">
-        <label for="destination">🗺️ Destination area</label>
+      <!-- ── Optional destination ── -->
+      <div class="input-group" id="destinationGroup">
+        <label for="destination" class="dest-opt-label">🗺️ Heading somewhere specific? <span style="font-weight:300">(optional — leave blank to search everywhere)</span></label>
         <div class="ac-wrap">
-          <input type="text" id="destination" placeholder="e.g. Black Forest, Snowdonia, Dolomites, Alps…" autocomplete="off">
+          <input type="text" id="destination" placeholder="e.g. Black Forest, Veluwe, Snowdonia, Dolomites…" autocomplete="off">
           <div class="ac-dropdown" id="acDropdownDest"></div>
         </div>
       </div>
 
-      <div class="input-group">
-        <label>Transport modes</label>
-        <div class="chip-row">
-          <label class="chip"><input type="checkbox" name="ptMode" value="bus" checked>🚌 Bus</label>
-          <label class="chip"><input type="checkbox" name="ptMode" value="tram" checked>🚊 Tram</label>
-          <label class="chip"><input type="checkbox" name="ptMode" value="train" checked>🚂 Train</label>
-          <label class="chip"><input type="checkbox" name="ptMode" value="metro" checked>🚇 Metro</label>
+      <!-- ── Advanced options (collapsed) ── -->
+      <details class="api-settings" id="advancedSettings">
+        <summary>Custom distances &amp; transport</summary>
+        <div style="display:flex;flex-direction:column;gap:1.1rem;margin-top:.85rem">
+          <div class="input-group">
+            <label>Transport modes</label>
+            <div class="chip-row">
+              <label class="chip"><input type="checkbox" name="ptMode" value="bus" checked>🚌 Bus</label>
+              <label class="chip"><input type="checkbox" name="ptMode" value="tram" checked>🚊 Tram</label>
+              <label class="chip"><input type="checkbox" name="ptMode" value="train" id="trainChkAdv" checked>🚂 Train</label>
+              <label class="chip"><input type="checkbox" name="ptMode" value="metro" checked>🚇 Metro</label>
+            </div>
+          </div>
+          <div class="slider-group" id="walkToStopGroup">
+            <div class="slider-header">
+              <label id="walkToStopLabel">🚶 Walk / cycle to stop</label>
+              <span class="slider-val" id="walkToStopVal">5km</span>
+            </div>
+            <input type="range" id="walkToStop" min="500" max="20000" step="500" value="5000">
+            <div class="slider-ticks" id="walkToStopTicks"><span>500m</span><span>5km</span><span>10km</span><span>15km</span><span>20km</span></div>
+          </div>
+          <div class="slider-group" id="ptJourneyGroup">
+            <div class="slider-header">
+              <label id="ptJourneyLabel">🚂 Train journey distance</label>
+              <span class="slider-val" id="ptJourneyVal">80km</span>
+            </div>
+            <input type="range" id="ptJourney" min="0" max="300000" step="5000" value="80000">
+            <div class="slider-ticks"><span>0 (local)</span><span>75km</span><span>150km</span><span>225km</span><span>300km</span></div>
+          </div>
+          <div class="slider-group">
+            <div class="slider-header">
+              <label id="walkFromStopLabel">🏔️ Walk from stop to trailhead</label>
+              <span class="slider-val" id="walkFromStopVal">5km</span>
+            </div>
+            <input type="range" id="walkFromStop" min="500" max="50000" step="500" value="5000">
+            <div class="slider-ticks" id="walkFromStopTicks"><span>500m</span><span>13km</span><span>25km</span><span>37km</span><span>50km</span></div>
+          </div>
         </div>
-      </div>
-
-      <div class="slider-group" id="walkToStopGroup">
-        <div class="slider-header">
-          <label id="walkToStopLabel">🚶 Walk from home to stop</label>
-          <span class="slider-val" id="walkToStopVal">5km</span>
-        </div>
-        <input type="range" id="walkToStop" min="500" max="20000" step="500" value="5000">
-        <div class="slider-ticks" id="walkToStopTicks"><span>500m</span><span>5km</span><span>10km</span><span>15km</span><span>20km</span></div>
-      </div>
-
-      <div class="slider-group" id="ptJourneyGroup">
-        <div class="slider-header">
-          <label id="ptJourneyLabel">🚂 Train journey distance — the further, the wider the search</label>
-          <span class="slider-val" id="ptJourneyVal">0km</span>
-        </div>
-        <input type="range" id="ptJourney" min="0" max="300000" step="5000" value="0">
-        <div class="slider-ticks"><span>0 (local, no trains)</span><span>75km</span><span>150km</span><span>225km</span><span>300km</span></div>
-      </div>
-
-      <div class="slider-group">
-        <div class="slider-header">
-          <label id="walkFromStopLabel">🏔️ Walk from stop to trailhead</label>
-          <span class="slider-val" id="walkFromStopVal">5km</span>
-        </div>
-        <input type="range" id="walkFromStop" min="500" max="50000" step="500" value="5000">
-        <div class="slider-ticks" id="walkFromStopTicks"><span>500m</span><span>13km</span><span>25km</span><span>37km</span><span>50km</span></div>
-      </div>
+      </details>
 
       <div style="display:flex;gap:.75rem;align-items:stretch">
         <button type="submit" class="btn-find" id="findBtn" style="flex:1">
@@ -665,14 +697,6 @@ const destInput = document.getElementById('destination');
 const acDropdownDest = document.getElementById('acDropdownDest');
 let acTimerDest;
 
-destInput.addEventListener('input', function() {
-  selectedDestCoords = null;
-  clearTimeout(acTimerDest);
-  const q = this.value.trim();
-  if (q.length < 3) { hideACDest(); return; }
-  acTimerDest = setTimeout(() => fetchACDest(q), 300);
-});
-
 destInput.addEventListener('keydown', function(e) {
   const items = acDropdownDest.querySelectorAll('.ac-item');
   const active = acDropdownDest.querySelector('.ac-item.ac-active');
@@ -788,34 +812,58 @@ function pickDestItem(el) {
 
 function hideACDest() { acDropdownDest.style.display = 'none'; acDropdownDest.innerHTML = ''; }
 
-// ── Search mode toggle ────────────────────────────────────────────────────────
+// ── Trip presets ──────────────────────────────────────────────────────────────
+
+const TRIP_PRESETS = {
+  quick:   { walkToStop: 3000,  ptJourney: 0,      walkFromStop: 3000  },
+  halfday: { walkToStop: 5000,  ptJourney: 80000,  walkFromStop: 5000  },
+  fullday: { walkToStop: 5000,  ptJourney: 200000, walkFromStop: 10000 },
+};
+
+function setPreset(name) {
+  const p = TRIP_PRESETS[name];
+  if (!p) return;
+  document.getElementById('walkToStop').value   = p.walkToStop;
+  document.getElementById('ptJourney').value    = p.ptJourney;
+  document.getElementById('walkFromStop').value = p.walkFromStop;
+  updateSlider('walkToStop',   'walkToStopVal');
+  updateSlider('ptJourney',    'ptJourneyVal');
+  updateSlider('walkFromStop', 'walkFromStopVal');
+  // Train: hide/uncheck for quick-escape (local only)
+  const trainChk = document.getElementById('trainChkAdv');
+  if (trainChk) {
+    trainChk.checked = p.ptJourney > 0;
+    trainChk.closest('.chip').style.display = p.ptJourney > 0 ? '' : 'none';
+  }
+}
+
+// ── Destination field → auto-set destination mode ─────────────────────────────
+
+// When user types a destination the mode switches automatically.
+// When the field is cleared, revert to near-home mode.
+document.getElementById('destination').addEventListener('input', function() {
+  selectedDestCoords = null;
+  searchMode = this.value.trim().length > 0 ? 'destination' : 'home';
+  // Also drive the autocomplete
+  clearTimeout(acTimerDest);
+  const q = this.value.trim();
+  if (q.length < 3) { hideACDest(); return; }
+  acTimerDest = setTimeout(() => fetchACDest(q), 300);
+});
+
+// ── Search mode (kept for backwards-compat; used by no-results CTAs) ─────────
 
 function setSearchMode(mode) {
   searchMode = mode;
-  document.getElementById('modeNearHome').classList.toggle('active', mode === 'home');
-  document.getElementById('modeDestination').classList.toggle('active', mode === 'destination');
-  document.getElementById('destinationGroup').style.display = mode === 'destination' ? '' : 'none';
-  document.getElementById('ptJourneyGroup').style.display   = mode === 'destination' ? 'none' : '';
-
-  // Train checkbox: visible in destination mode OR when ptJourney > 0 in near-home mode
-  const trainChip = document.querySelector('input[name="ptMode"][value="train"]')?.closest('.chip');
-  if (trainChip) {
-    const hasPtJourney = parseInt(document.getElementById('ptJourney').value) > 0;
-    const showTrain = mode === 'destination' || hasPtJourney;
-    trainChip.style.display = showTrain ? '' : 'none';
-    const trainInput = trainChip.querySelector('input');
-    if (trainInput) trainInput.checked = showTrain;
-  }
-
-  // Slider labels
-  const act = document.getElementById('activity').value;
-  const cfg = ACTIVITY_CONFIG[act] || ACTIVITY_CONFIG.hiking;
   if (mode === 'destination') {
-    document.getElementById('walkToStopLabel').textContent   = cfg.toStopLabel.replace('home', 'departure stop');
-    document.getElementById('walkFromStopLabel').textContent = '🏔️ Walk from arrival stop to trail';
+    // Focus destination field so user can type
+    const df = document.getElementById('destination');
+    df.scrollIntoView({behavior:'smooth', block:'center'});
+    df.focus();
   } else {
-    document.getElementById('walkToStopLabel').textContent   = '🔍 Search radius from home';
-    document.getElementById('walkFromStopLabel').textContent = cfg.fromStopLabel;
+    document.getElementById('destination').value = '';
+    selectedDestCoords = null;
+    searchMode = 'home';
   }
 }
 
@@ -842,6 +890,19 @@ function fmtMins(m) {
   if (m < 60) return `${m}min`;
   const h = Math.floor(m / 60), min = m % 60;
   return min ? `${h}h ${min}min` : `${h}h`;
+}
+
+// Returns "~Xmin" for a journey leg given distance in metres and transport mode.
+function fmtLegTime(distM, mode) {
+  if (!distM || distM <= 0) return null;
+  // m/min speeds: walk=83, cycle=250, train=1333
+  const mpm = mode === 'train' ? (80000/60) : mode === 'cycle' ? 250 : (5000/60);
+  return '~' + fmtMins(Math.round(distM / mpm));
+}
+
+function toggleMoreActions(idx) {
+  const el = document.getElementById(`more-${idx}`);
+  if (el) el.classList.toggle('open');
 }
 
 function updateSlider(id, valId) {
@@ -956,16 +1017,9 @@ document.getElementById('activity').addEventListener('change', function() {
 });
 document.getElementById('walkToStop').addEventListener('input',   () => updateSlider('walkToStop',   'walkToStopVal'));
 document.getElementById('walkFromStop').addEventListener('input', () => updateSlider('walkFromStop', 'walkFromStopVal'));
-document.getElementById('ptJourney').addEventListener('input', () => {
-  updateSlider('ptJourney', 'ptJourneyVal');
-  // Show/hide train checkbox based on whether a PT journey is set
-  const trainChip = document.querySelector('input[name="ptMode"][value="train"]')?.closest('.chip');
-  if (trainChip && searchMode !== 'destination') {
-    const hasPtJourney = parseInt(document.getElementById('ptJourney').value) > 0;
-    trainChip.style.display = hasPtJourney ? '' : 'none';
-    trainChip.querySelector('input').checked = hasPtJourney;
-  }
-});
+document.getElementById('ptJourney').addEventListener('input', () => updateSlider('ptJourney', 'ptJourneyVal'));
+// Init from default half-day preset, then apply activity-specific defaults
+setPreset('halfday');
 setSliders(document.getElementById('activity').value);
 updateTrailTypeChips(document.getElementById('activity').value);
 makeSliderEditable('walkToStop',   'walkToStopVal');
@@ -1363,10 +1417,10 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
     <div class="loading-spinner">🔄</div>
     <div class="loading-msg">${isDestMode ? `Finding trails near <strong>${destLabel}</strong>…` : 'Finding trails reachable by public transport…'}</div>
     <div class="loading-sub">${isDestMode
-      ? `≤${fmt(walkToStop)} to departure stop · ≤${fmt(walkFromStop)} from arrival stop to trail`
+      ? `Searching near ${destLabel} · ≤${fmt(walkFromStop)} from stop to trail`
       : ptJourney > 0
-        ? `≤${fmt(walkToStop)} to station · 🚂 ${fmt(ptJourney)} journey · ≤${fmt(walkFromStop)} to trail`
-        : `Trails within ${fmt(combinedRadius)} of home · bus/tram stop within ${fmt(walkFromStop)} of trail`
+        ? `Up to ${fmt(ptJourney)} by train · ≤${fmt(walkFromStop)} from station to trail`
+        : `Local trails within ${fmt(combinedRadius)} · ≤${fmt(walkFromStop)} from stop to trail`
     }</div>
   </div>`;
 
@@ -1528,22 +1582,22 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
         noBody  = `No trails with a nearby stop were found within ${fmt(destSearchRadius)} of that area. Try a more specific place name — for example "Freudenstadt" instead of "Black Forest" — or increase the <strong>Walk from stop to trail</strong> radius.`;
       } else if (ptJourney > 0) {
         noIcon  = '🚂';
-        noTitle = 'No trails found on this train route';
-        noBody  = `We couldn't find any trails within <strong>${fmt(walkFromStop)}</strong> of a station in the area your train would reach. Try:`;
+        noTitle = 'No trails found on this route';
+        noBody  = `Nothing reachable within <strong>${fmt(walkFromStop)}</strong> of a station in that direction. Try:`;
         noTip   = `<ul style="text-align:left;margin:.6rem auto;max-width:360px;line-height:1.9;font-size:.9rem">
-          <li>Increase <strong>Walk from stop to trail</strong></li>
-          <li>Increase the <strong>Train journey distance</strong></li>
-          <li>Switch to <strong>By Destination</strong> and name a specific area (e.g. Veluwe, Ardennes)
-            <br><button class="act-btn" style="margin-top:.35rem" onclick="setSearchMode('destination');document.querySelector('.search-card').scrollIntoView({behavior:'smooth'})">🗺️ Switch to By Destination</button>
+          <li>Switch to <strong>Full day</strong> to search further</li>
+          <li>Type a destination (e.g. Veluwe, Ardennes) to search a specific area
+            <br><button class="act-btn" style="margin-top:.35rem" onclick="setSearchMode('destination');document.querySelector('.search-card').scrollIntoView({behavior:'smooth'})">🗺️ Add a destination</button>
           </li>
+          <li>Open <strong>Custom distances</strong> to fine-tune the walk radius</li>
         </ul>`;
       } else {
         noIcon  = '🏞️';
         noTitle = 'No trails found nearby';
         noBody  = isCycling
-          ? 'No cycling trails were found near a stop in this area. Try increasing the search radius, or use <strong>By Destination</strong> to head somewhere specific.'
-          : 'No trails were found near a stop in this area. Try increasing your search radius, or slide the <strong>Train Journey</strong> distance to search further afield.';
-        noTip   = `<button class="act-btn" style="margin-top:.75rem" onclick="setSearchMode('destination');document.querySelector('.search-card').scrollIntoView({behavior:'smooth'})">🗺️ Try By Destination</button>`;
+          ? 'No cycling trails found near a stop in this area. Try the Half-day or Full-day preset, or type a destination.'
+          : 'No trails found near a stop in this area. Try the Half-day preset to search by train, or type a destination.';
+        noTip   = `<button class="act-btn" style="margin-top:.75rem" onclick="setSearchMode('destination');document.querySelector('.search-card').scrollIntoView({behavior:'smooth'})">🗺️ Add a destination</button>`;
       }
       resultsDiv.innerHTML = `<div class="no-results">
         <div class="no-results-icon">${noIcon}</div>
@@ -1557,7 +1611,7 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
     resultsDiv.innerHTML = `
       <div class="results-meta">
         <span class="results-count">${results.length} trail${results.length !== 1 ? 's' : ''} found</span>
-        <span class="results-hint">${isDestMode ? `📍 ${destLabel} · within ${fmt(destSearchRadius)} · ≤${fmt(walkFromStop)} stop→trail` : ptJourney > 0 ? `🚂 Up to ${fmt(ptJourney)} by train · ≤${fmt(walkFromStop)} from station to trail` : `Within ${fmt(combinedRadius)} of home · ≤${fmt(walkFromStop)} from trail`}</span>
+        <span class="results-hint">${isDestMode ? `📍 Near ${destLabel}` : ptJourney > 0 ? `🚂 Up to ${fmt(ptJourney)} by train · ≤${fmt(walkFromStop)} from station` : `Local · within ${fmt(combinedRadius)}`}</span>
         <div style="display:flex;gap:.45rem;flex-wrap:wrap">
           <button class="meta-btn" onclick="downloadAllGPX()">📦 Download all GPX</button>
           <button class="meta-btn" id="shareListBtn" onclick="shareList()">🔗 Share list</button>
@@ -1650,11 +1704,9 @@ function renderCard(trail, idx) {
   const legUrl = `https://www.google.com/maps/dir/?api=1&origin=${best.lat},${best.lon}&destination=${trail.lat},${trail.lon}&travelmode=walking`;
   const trailUrl = `https://www.google.com/maps?q=${trail.lat},${trail.lon}`;
 
-  const srcPill = trail.source === 'oda'
-    ? '<span class="source-pill src-oda">Outdooractive</span>'
-    : trail.source === 'custom'
+  const srcPill = trail.source === 'custom'
     ? '<span class="source-pill src-custom">My Route</span>'
-    : '<span class="source-pill src-osm">OSM</span>';
+    : '';
   const diffLabel = trail.difficulty
     ? `<span class="diff-${trail.difficulty}">● ${trail.difficulty}</span>` : '';
   const elevLabel = trail.elevGain ? `↑${trail.elevGain}m` : '';
@@ -1682,7 +1734,7 @@ function renderCard(trail, idx) {
       </div>
       <div class="jleg">
         <div class="jline"></div>
-        <div class="jdist">🚶 ${fmt(dep.distFromHome)}</div>
+        <div class="jdist">${fmtLegTime(dep.distFromHome, legLabel) || fmt(dep.distFromHome)}</div>
       </div>
       <div class="jnode">
         <div class="jicon jicon-stop">${dep.icon}</div>
@@ -1691,7 +1743,7 @@ function renderCard(trail, idx) {
       </div>
       <div class="jleg">
         <div class="jline"></div>
-        <div class="jdist">🚂 to destination</div>
+        <div class="jdist">🚂 by train</div>
       </div>
       <div class="jnode">
         <div class="jicon jicon-stop">${best.icon}</div>
@@ -1700,7 +1752,7 @@ function renderCard(trail, idx) {
       </div>
       <div class="jleg">
         <div class="jline"></div>
-        <div class="jdist">${trail.icon} ${fmt(best.distToTrail)}</div>
+        <div class="jdist">${fmtLegTime(best.distToTrail, legLabel) || fmt(best.distToTrail)}</div>
       </div>
       <div class="jnode">
         <div class="jicon jicon-trail">🏔️</div>
@@ -1713,7 +1765,7 @@ function renderCard(trail, idx) {
       </div>
       <div class="jleg">
         <div class="jline"></div>
-        <div class="jdist">🚂 to destination</div>
+        <div class="jdist">🚂 by train</div>
       </div>
       <div class="jnode">
         <div class="jicon jicon-stop">${best.icon}</div>
@@ -1722,7 +1774,7 @@ function renderCard(trail, idx) {
       </div>
       <div class="jleg">
         <div class="jline"></div>
-        <div class="jdist">${trail.icon} ${fmt(best.distToTrail)}</div>
+        <div class="jdist">${fmtLegTime(best.distToTrail, legLabel) || fmt(best.distToTrail)}</div>
       </div>
       <div class="jnode">
         <div class="jicon jicon-trail">🏔️</div>
@@ -1741,7 +1793,7 @@ function renderCard(trail, idx) {
       </div>
       <div class="jleg">
         <div class="jline"></div>
-        <div class="jdist">🚶 ${fmt(dep.distFromHome)}</div>
+        <div class="jdist">${fmtLegTime(dep.distFromHome, legLabel) || fmt(dep.distFromHome)}</div>
       </div>
       <div class="jnode">
         <div class="jicon jicon-stop">${dep.icon}</div>
@@ -1750,16 +1802,16 @@ function renderCard(trail, idx) {
       </div>
       <div class="jleg">
         <div class="jline"></div>
-        <div class="jdist">🚂 ~${fmt(trainDist)}</div>
+        <div class="jdist">${fmtLegTime(trainDist, 'train') || ('~' + fmt(trainDist))}</div>
       </div>
       <div class="jnode">
         <div class="jicon jicon-stop">${best.icon}</div>
         <div class="jlabel">${best.name}</div>
-        <div class="jsub">${arrIsBus ? '🚌 bus from station' : best.type}</div>
+        <div class="jsub">${arrIsBus ? '🚌 via bus' : best.type}</div>
       </div>
       <div class="jleg">
         <div class="jline"></div>
-        <div class="jdist">${trail.icon} ${fmt(best.distToTrail)}</div>
+        <div class="jdist">${fmtLegTime(best.distToTrail, legLabel) || fmt(best.distToTrail)}</div>
       </div>
       <div class="jnode">
         <div class="jicon jicon-trail">🏔️</div>
@@ -1772,7 +1824,7 @@ function renderCard(trail, idx) {
       </div>
       <div class="jleg">
         <div class="jline"></div>
-        <div class="jdist">🚶 ${fmt(best.distFromHome)}</div>
+        <div class="jdist">${fmtLegTime(best.distFromHome, legLabel) || fmt(best.distFromHome)}</div>
       </div>
       <div class="jnode">
         <div class="jicon jicon-stop">${best.icon}</div>
@@ -1781,7 +1833,7 @@ function renderCard(trail, idx) {
       </div>
       <div class="jleg">
         <div class="jline"></div>
-        <div class="jdist">${trail.icon} ${fmt(best.distToTrail)}</div>
+        <div class="jdist">${fmtLegTime(best.distToTrail, legLabel) || fmt(best.distToTrail)}</div>
       </div>
       <div class="jnode">
         <div class="jicon jicon-trail">🏔️</div>
@@ -1802,13 +1854,16 @@ function renderCard(trail, idx) {
     </div>
 
     <div class="action-row">
-      <a class="act-btn primary" href="${transitUrl}" target="_blank">${isDestMode ? '🚂 Plan journey' : '🚌 Plan transit'}</a>
+      <a class="act-btn primary" href="${transitUrl}" target="_blank">🚌 Plan journey</a>
       <a class="act-btn" href="${legUrl}" target="_blank">🥾 Stop → Trail</a>
-      <a class="act-btn" href="${trailUrl}" target="_blank">🗺️ View on map</a>
-      ${trail.oda_url ? `<a class="act-btn" href="${trail.oda_url}" target="_blank">🌐 Outdooractive</a>` : ''}
-      <button class="act-btn" onclick="toggleLoopPanel(${idx})">🔁 Loop</button>
+      <a class="act-btn" href="${trailUrl}" target="_blank">🗺️ Map</a>
       <button class="act-btn" onclick="downloadGPX(${idx})">📥 GPX</button>
+      <button class="act-btn" onclick="toggleMoreActions(${idx})">··· More</button>
+    </div>
+    <div id="more-${idx}" class="more-actions">
+      <button class="act-btn" onclick="toggleLoopPanel(${idx})">🔁 Loop</button>
       <button class="act-btn" onclick="toggleGpxPanel(${idx})">🔍 Find GPX</button>
+      ${trail.oda_url ? `<a class="act-btn" href="${trail.oda_url}" target="_blank">🌐 Outdooractive</a>` : ''}
       <button class="act-btn" id="shareBtn-${idx}" onclick="shareTrail(${idx})">🔗 Share</button>
       <button class="act-btn${isDone ? ' done-active' : ''}" id="doneBtn-${idx}" onclick="toggleDone(${idx})">${isDone ? '✅ Done' : '🏅 Done'}</button>
       <button class="act-btn" id="reviewBtn-${idx}" onclick="toggleReviews(${idx})">💬 Reviews</button>
