@@ -244,10 +244,9 @@ details.api-settings[open] summary{margin-bottom:.85rem}
   .jicon{width:32px;height:32px;font-size:.95rem}
   .jlabel{font-size:.64rem;max-width:60px}
   .jsub{font-size:.6rem;max-width:60px}
-  /* Action row — horizontal scroll instead of wrapping */
-  .action-row{overflow-x:auto;flex-wrap:nowrap;padding-bottom:.6rem;-webkit-overflow-scrolling:touch;gap:.4rem;scrollbar-width:none}
-  .action-row::-webkit-scrollbar{display:none}
-  .act-btn{padding:.6rem .75rem;font-size:.8rem;flex-shrink:0}
+  /* Action row — wrap on mobile so all buttons stay visible */
+  .action-row{flex-wrap:wrap;gap:.4rem}
+  .act-btn{padding:.6rem .75rem;font-size:.8rem}
   /* Only show the best stop on mobile — saves a lot of vertical space */
   .stop-item:not(.best){display:none}
   /* Filter bar */
@@ -1684,22 +1683,28 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
             <div class="loading-spinner">🎲</div>
             <div class="loading-msg">Exploring ${suggestion.name}…</div>
           </div>`;
-          const sugRadius = 25000;
+          // Use a wider area for suggestions: stops up to 40km from centre,
+          // trails up to 30km. Match radius is generous (15km) so regional
+          // train stations near hiking areas aren't filtered out.
+          const sugStopRadius  = 40000;
+          const sugTrailRadius = 30000;
+          const sugMatchDist   = Math.max(walkFromStop, 15000);
           try {
             const [sugStops, sugOsm, sugOda, sugCustom] = await Promise.all([
-              fetchStops(suggestion.lat, suggestion.lon, sugRadius, ptModes).catch(() => []),
-              fetchTrails(suggestion.lat, suggestion.lon, sugRadius, trailSubtypes).catch(() => []),
-              fetchOutdooractive(suggestion.lat, suggestion.lon, sugRadius, trailSubtypes).catch(() => []),
-              fetchCustomRoutes(suggestion.lat, suggestion.lon, sugRadius),
+              fetchStops(suggestion.lat, suggestion.lon, sugStopRadius, ptModes).catch(() => []),
+              fetchTrails(suggestion.lat, suggestion.lon, sugTrailRadius, trailSubtypes).catch(() => []),
+              fetchOutdooractive(suggestion.lat, suggestion.lon, sugTrailRadius, trailSubtypes).catch(() => []),
+              fetchCustomRoutes(suggestion.lat, suggestion.lon, sugTrailRadius),
             ]);
             const sugOsmNames = new Set(sugOsm.map(t => t.name.toLowerCase()));
             const sugTrails = [...sugCustom, ...sugOsm, ...sugOda.filter(t => !sugOsmNames.has(t.name.toLowerCase()))];
             const moveSpeedSug = isCycling ? 250 : (5000 / 60);
+            console.log(`[suggest] ${suggestion.name}: ${sugStops.length} stops, ${sugTrails.length} trails`);
 
             const sugResults = sugTrails.map(trail => {
               const connecting = sugStops
                 .map(s => ({...s, distToTrail: dist(trail.lat, trail.lon, s.lat, s.lon)}))
-                .filter(s => s.distToTrail <= walkFromStop)
+                .filter(s => s.distToTrail <= sugMatchDist)
                 .sort((a, b) => {
                   const at = a.icon === '🚂' ? 0 : 1, bt = b.icon === '🚂' ? 0 : 1;
                   return at !== bt ? at - bt : a.distToTrail - b.distToTrail;
