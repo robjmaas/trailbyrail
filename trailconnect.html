@@ -204,7 +204,53 @@ details.api-settings[open] summary{margin-bottom:.85rem}
 .deco-1{top:12%;left:2%;font-size:9rem;opacity:.06;animation:sway 6s ease-in-out infinite}
 .deco-2{bottom:18%;right:3%;font-size:12rem;opacity:.05;animation:sway 7s ease-in-out infinite 1s}
 @keyframes sway{0%,100%{transform:rotate(-2deg)}50%{transform:rotate(2deg)}}
-@media(max-width:700px){.form-row{grid-template-columns:1fr}.journey-chain{padding:.9rem .5rem}}
+/* ── Tablet ── */
+@media(max-width:700px){
+  .form-row{grid-template-columns:1fr}
+  .journey-chain{padding:.9rem .5rem}
+  .results-meta{flex-wrap:wrap;gap:.5rem}
+  .results-meta>div{width:100%;justify-content:flex-start}
+}
+/* ── Mobile ── */
+@media(max-width:620px){
+  .container{padding:.75rem}
+  /* Compact header — show wordmark only, no big logo or subtitle */
+  header{padding:1.25rem .75rem .85rem}
+  .logo-mark{display:none}
+  .hero-slogan{display:none}
+  .wordmark{font-size:2.2rem;margin-bottom:.35rem}
+  .auth-bar{margin-top:.5rem;gap:.35rem}
+  .auth-bar-btn{padding:.45rem .8rem;font-size:.78rem}
+  /* Search card */
+  .search-card{padding:1.1rem .9rem;border-radius:16px;margin-bottom:1rem}
+  /* Trail cards */
+  .trail-card{padding:1.1rem .9rem;border-radius:14px}
+  .trail-card:hover{transform:none;box-shadow:0 8px 32px rgba(0,0,0,.3)}
+  .trail-name{font-size:1.1rem}
+  /* Journey chain — smaller nodes, stays scrollable */
+  .journey-chain{padding:.6rem .35rem}
+  .jnode{min-width:50px}
+  .jleg{min-width:36px}
+  .jicon{width:32px;height:32px;font-size:.95rem}
+  .jlabel{font-size:.64rem;max-width:60px}
+  .jsub{font-size:.6rem;max-width:60px}
+  /* Action row — horizontal scroll instead of wrapping */
+  .action-row{overflow-x:auto;flex-wrap:nowrap;padding-bottom:.6rem;-webkit-overflow-scrolling:touch;gap:.4rem;scrollbar-width:none}
+  .action-row::-webkit-scrollbar{display:none}
+  .act-btn{padding:.6rem .75rem;font-size:.8rem;flex-shrink:0}
+  /* Only show the best stop on mobile — saves a lot of vertical space */
+  .stop-item:not(.best){display:none}
+  /* Filter bar */
+  .filter-bar{gap:.4rem .65rem}
+  .filter-bar input[type=number]{width:55px}
+  /* Hide decorative background emojis */
+  .deco{display:none}
+  /* Tighter slider ticks */
+  .slider-ticks{font-size:.62rem}
+  /* No results padding */
+  .no-results{padding:2.5rem 1rem}
+  .no-results h3{font-size:1.4rem}
+}
 /* ── Weather ── */
 .weather-row{display:flex;gap:.5rem;margin-top:.75rem;flex-wrap:wrap}
 .weather-day{flex:1;min-width:70px;background:var(--cloud);border-radius:10px;padding:.5rem .6rem;text-align:center;font-size:.78rem;color:var(--forest-dark)}
@@ -220,6 +266,8 @@ details.api-settings[open] summary{margin-bottom:.85rem}
 .duration-row{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;padding:.55rem .85rem;background:linear-gradient(135deg,rgba(58,125,82,.1),rgba(13,36,22,.06));border-radius:10px;border:1px solid rgba(58,125,82,.2);margin:.6rem 0;font-size:.82rem;font-weight:600;color:var(--forest-dark)}
 .dur-sep{color:var(--moss);opacity:.5;font-weight:400}
 .transit-pill{opacity:.45;font-weight:400;font-size:.78rem}
+.mobile-stops-hint{display:none;font-size:.7rem;font-weight:400;opacity:.6}
+@media(max-width:620px){.mobile-stops-hint{display:inline}}
 /* ── Done badge ── */
 .trail-card.done-trail{opacity:.8;border-left-color:var(--moss)!important}
 .act-btn.done-active{background:var(--moss);color:white;border-color:var(--moss)}
@@ -1733,7 +1781,7 @@ function renderCard(trail, idx) {
     <div id="weather-${idx}"></div>
 
     <div class="stops-section">
-      <div class="stops-title">${isDestMode || lastPtJourney > 0 ? '🚂 Alight at' : '🚌'} ${trail.stops.length} nearby stop${trail.stops.length !== 1 ? 's' : ''}</div>
+      <div class="stops-title">${isDestMode || lastPtJourney > 0 ? '🚂 Alight at' : '🚌'} ${trail.stops.length} nearby stop${trail.stops.length !== 1 ? 's' : ''}${trail.stops.length > 1 ? `<span class="mobile-stops-hint"> · swipe buttons below for more options</span>` : ''}</div>
       <div class="stop-list">${stopItems}</div>
     </div>
 
