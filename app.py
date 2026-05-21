@@ -601,16 +601,23 @@ def api_graphhopper():
 
 @app.route('/api/transit-time', methods=['POST'])
 def api_transit_time():
+    """
+    Returns the fastest public-transport journey from origin → destination.
+    Uses Navitia (navitia.io) — free tier, good European coverage.
+    Requires NAVITIA_API_KEY env var (free registration at navitia.io).
+    Results are cached 7 days in transit_cache.
+    """
     from datetime import datetime, timedelta, timezone
-    key = cfg('GRAPHHOPPER_KEY')
+    key = cfg('NAVITIA_API_KEY')
     if not key:
-        return jsonify({'error': 'GRAPHHOPPER_KEY not configured'}), 503
+        return jsonify({'error': 'NAVITIA_API_KEY not configured'}), 503
+
     data = request.json or {}
     try:
-        o_lat = round(float(data['origin_lat']), 3)
-        o_lon = round(float(data['origin_lon']), 3)
-        d_lat = round(float(data['dest_lat']),   3)
-        d_lon = round(float(data['dest_lon']),   3)
+        o_lat = round(float(data['origin_lat']), 4)
+        o_lon = round(float(data['origin_lon']), 4)
+        d_lat = round(float(data['dest_lat']),   4)
+        d_lon = round(float(data['dest_lon']),   4)
     except (KeyError, ValueError, TypeError):
         return jsonify({'error': 'Invalid coordinates'}), 400
 
@@ -628,7 +635,7 @@ def api_transit_time():
         return jsonify(resp)
     db.close()
 
-    # Use next weekday at 09:00 UTC — representative for scheduled services
+    # Use next weekday at 09:00 local time — representative for typical journeys
     now = datetime.now(timezone.utc)
     dep = now.replace(hour=9, minute=0, second=0, microsecond=0)
     if dep <= now or now.weekday() >= 5:
@@ -637,49 +644,71 @@ def api_transit_time():
             days += 1
         dep = (now + timedelta(days=days)).replace(hour=9, minute=0, second=0, microsecond=0)
 
+    dep_str = dep.strftime('%Y%m%dT%H%M%S')  # Navitia format: 20250521T090000
+
+    # Navitia: from/to use lon;lat format, auth is the API key as Basic username
+    import base64
+    auth = 'Basic ' + base64.b64encode(f'{key}:'.encode()).decode()
+
     try:
-        r = requests.post(
-            f'https://graphhopper.com/api/1/route?key={key}',
-            json={
-                'points': [[o_lon, o_lat], [d_lon, d_lat]],
-                'profile': 'pt',
-                'pt.earliest_departure_time': dep.strftime('%Y-%m-%dT%H:%M:%SZ'),
-                'locale': 'en',
+        r = requests.get(
+            'https://api.navitia.io/v1/journeys',
+            headers={'Authorization': auth, 'Accept': 'application/json'},
+            params={
+                'from':     f'{o_lon};{o_lat}',
+                'to':       f'{d_lon};{d_lat}',
+                'datetime': dep_str,
+                'count':    1,
+                'min_nb_journeys': 1,
             },
-            headers={**HEADERS, 'Content-Type': 'application/json'},
-            timeout=15,
+            timeout=12,
         )
+
+        if r.status_code == 404:
+            # No coverage for this region in Navitia
+            return jsonify({'error': 'No PT coverage for this area'}), 404
         r.raise_for_status()
-        gh = r.json()
-        if 'paths' not in gh or not gh['paths']:
+
+        nav = r.json()
+        journeys = nav.get('journeys', [])
+        if not journeys:
             return jsonify({'error': 'No PT route found'}), 404
 
-        path = gh['paths'][0]
-        duration_mins = round(path['time'] / 60000)
+        best = journeys[0]
+        duration_mins = round(best['duration'] / 60)
 
-        # Parse legs into a clean structure for the frontend
-        VEHICLE_ICON = {
-            'RAIL': '🚂', 'SUBWAY': '🚇', 'TRAM': '🚊',
-            'BUS': '🚌', 'FERRY': '⛴️', 'GONDOLA': '🚡', 'CABLE_CAR': '🚠',
+        # Map Navitia physical modes to icons
+        MODE_ICON = {
+            'Train': '🚂', 'RapidTransit': '🚂', 'LocalTrain': '🚂',
+            'LongDistanceTrain': '🚂', 'Bus': '🚌', 'Metro': '🚇',
+            'Tramway': '🚊', 'Ferry': '⛴️', 'Coach': '🚌',
+            'Shuttle': '🚌', 'Taxi': '🚖',
         }
+
         legs_out = []
-        for leg in path.get('legs', []):
-            mins = round(leg.get('time', 0) / 60000)
-            dist = round(leg.get('distance', 0))
-            if leg.get('type') == 'pt':
-                vtype = (leg.get('vehicle_type') or 'RAIL').upper()
-                icon  = VEHICLE_ICON.get(vtype, '🚂')
+        for section in best.get('sections', []):
+            stype = section.get('type', '')
+            dur   = round(section.get('duration', 0) / 60)
+            if stype == 'street_network' or stype == 'crow_fly':
+                dist_m = round(section.get('geojson', {}).get('properties', [{}])[0].get('length', 0) if section.get('geojson') else 0)
+                if dur > 0:
+                    legs_out.append({'type': 'walk', 'mins': dur, 'dist_m': dist_m})
+            elif stype == 'public_transport':
+                di   = section.get('display_informations', {})
+                mode = di.get('physical_mode', 'Train')
+                icon = MODE_ICON.get(mode, '🚂')
                 legs_out.append({
-                    'type':     'pt',
-                    'icon':     icon,
-                    'line':     leg.get('trip_headsign') or leg.get('route_id') or '',
-                    'desc':     leg.get('route_desc') or '',
-                    'from':     leg.get('departureLocation') or '',
-                    'to':       leg.get('arrivalLocation') or '',
-                    'mins':     mins,
+                    'type': 'pt',
+                    'icon': icon,
+                    'line': di.get('headsign') or di.get('label') or '',
+                    'desc': di.get('description') or mode,
+                    'from': section.get('from', {}).get('name', ''),
+                    'to':   section.get('to',   {}).get('name', ''),
+                    'mins': dur,
                 })
-            else:
-                legs_out.append({'type': 'walk', 'mins': mins, 'dist_m': dist})
+            elif stype == 'transfer' or stype == 'waiting':
+                if dur > 0:
+                    legs_out.append({'type': 'walk', 'mins': dur, 'dist_m': 0})
 
         legs_json = json.dumps(legs_out)
         db = get_db()
@@ -689,11 +718,12 @@ def api_transit_time():
         )
         db.commit(); db.close()
         return jsonify({'duration_mins': duration_mins, 'legs': legs_out})
+
     except requests.HTTPError as e:
         body = ''
-        try: body = e.response.text[:400]
+        try: body = e.response.text[:200]
         except: pass
-        return jsonify({'error': f'GraphHopper {e.response.status_code}', 'detail': body}), 502
+        return jsonify({'error': f'Navitia {e.response.status_code}', 'detail': body}), 502
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

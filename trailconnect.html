@@ -275,7 +275,8 @@ details.api-settings[open] summary{margin-bottom:.85rem}
 /* ── Duration row ── */
 .duration-row{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;padding:.55rem .85rem;background:linear-gradient(135deg,rgba(58,125,82,.1),rgba(13,36,22,.06));border-radius:10px;border:1px solid rgba(58,125,82,.2);margin:.6rem 0;font-size:.82rem;font-weight:600;color:var(--forest-dark)}
 .dur-sep{color:var(--moss);opacity:.5;font-weight:400}
-.transit-pill{opacity:.45;font-weight:400;font-size:.78rem}
+.transit-pill{display:flex;align-items:center;gap:.3rem;min-height:1.4rem}
+.transit-real{background:rgba(58,125,82,.13);border:1px solid rgba(58,125,82,.3);border-radius:6px;padding:.18rem .6rem;font-size:.78rem;font-weight:700;color:var(--forest-med);white-space:nowrap}
 .mobile-stops-hint{display:none;font-size:.7rem;font-weight:400;opacity:.6}
 @media(max-width:620px){.mobile-stops-hint{display:inline}}
 /* ── Done badge ── */
@@ -1683,6 +1684,8 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
       </div>`;
     results.forEach((t, i) => fetchWeatherForCard(i, t.lat, t.lon));
     highlightPendingTrail();
+    // Fetch real transit times async (non-blocking — cards already shown)
+    fetchTransitTimes(results);
 
   } catch(err) {
     btn.disabled = false;
@@ -1899,7 +1902,13 @@ function renderCard(trail, idx) {
 
     </div>
 
-    ${trail.trailMins ? `<div class="duration-row"><span>${trail.icon} ~${fmtMins(trail.trailMins)} on trail</span></div>` : ''}
+    <div class="duration-row">
+      ${trail.trailMins ? `<span>${trail.icon} ~${fmtMins(trail.trailMins)} on trail</span>` : ''}
+      <span class="transit-pill" id="transit-${idx}" style="display:flex;align-items:center;gap:.3rem">
+        <span style="display:inline-block;width:12px;height:12px;border-radius:50%;border:2px solid var(--moss);border-top-color:transparent;animation:spin .8s linear infinite"></span>
+        <span style="font-size:.75rem;color:var(--moss)">checking journey…</span>
+      </span>
+    </div>
 
     <div id="weather-${idx}"></div>
 
@@ -2258,32 +2267,67 @@ async function fetchWeatherForCard(idx, lat, lon) {
   } catch { /* silently skip */ }
 }
 
-// ── Transit time (GraphHopper PT) ────────────────────────────────────────────
+// ── Real transit times via Navitia ───────────────────────────────────────────
 async function fetchTransitTimes(results) {
-  if (!homeLat || !homeLon) return;
-  for (let i = 0; i < results.length; i++) {
+  if (!homeLat || !homeLon) {
+    // No home coords — clear all spinners
+    results.forEach((_, i) => { const el = document.getElementById(`transit-${i}`); if (el) el.innerHTML = ''; });
+    return;
+  }
+  // Quick probe: check first result — if 503 (no key) clear all spinners immediately
+  const probe = results[0];
+  if (probe) {
+    try {
+      const pr = await fetch('/api/transit-time', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({origin_lat:homeLat, origin_lon:homeLon, dest_lat:probe.lat, dest_lon:probe.lon})
+      });
+      if (pr.status === 503) {
+        // No API key — silently clear all spinners, no error shown
+        results.forEach((_, i) => { const el = document.getElementById(`transit-${i}`); if (el) el.innerHTML = ''; });
+        return;
+      }
+      // Process first result from probe
+      const d = await pr.json();
+      _applyTransitResult(0, d, results);
+    } catch {
+      results.forEach((_, i) => { const el = document.getElementById(`transit-${i}`); if (el) el.innerHTML = ''; });
+      return;
+    }
+  }
+  // Fetch remaining results (probe already handled index 0)
+  const limit = Math.min(results.length, 8);
+  for (let i = 1; i < limit; i++) {
     const t  = results[i];
-    const el = document.getElementById(`transit-${i}`);
-    if (!el) continue;
     try {
       const r = await fetch('/api/transit-time', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({origin_lat: homeLat, origin_lon: homeLon, dest_lat: t.lat, dest_lon: t.lon})
       });
       const d = await r.json();
-      if (d.duration_mins) {
-        el.textContent = `🚌 ~${fmtMins(d.duration_mins)} transit`;
-        results[i].journeyMins = d.duration_mins;
-        // Replace static journey chain with real legs if available
-        if (d.legs && d.legs.length) applyRealLegs(i, d.legs);
-      } else {
-        el.remove();
-      }
+      _applyTransitResult(i, d, results);
     } catch {
-      el.remove();
+      const el = document.getElementById(`transit-${i}`); if (el) el.innerHTML = '';
     }
-    if (i < results.length - 1) await new Promise(res => setTimeout(res, 250));
+    if (i < limit - 1) await new Promise(res => setTimeout(res, 300));
+  }
+  // Clear spinners on cards beyond the fetch limit
+  for (let i = limit; i < results.length; i++) {
+    const el = document.getElementById(`transit-${i}`); if (el) el.innerHTML = '';
+  }
+}
+
+function _applyTransitResult(i, d, results) {
+  const el = document.getElementById(`transit-${i}`);
+  if (!el) return;
+  if (d.duration_mins && d.duration_mins > 0) {
+    const h = Math.floor(d.duration_mins / 60), m = d.duration_mins % 60;
+    const label = h > 0 ? `${h}h${m > 0 ? ` ${m}min` : ''}` : `${m}min`;
+    el.innerHTML = `<span class="transit-real">🚌 ${label} by transit</span>`;
+    if (results[i]) results[i].journeyMins = d.duration_mins;
+    if (d.legs && d.legs.length) applyRealLegs(i, d.legs);
+  } else {
+    el.innerHTML = '';
   }
 }
 
