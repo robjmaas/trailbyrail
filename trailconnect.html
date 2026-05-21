@@ -502,13 +502,13 @@ details.api-settings[open] summary{margin-bottom:.85rem}
         <label>How far do you want to go?</label>
         <div class="preset-chips">
           <label class="preset-chip">
-            <input type="radio" name="tripPreset" value="quick" onchange="setPreset('quick')">
+            <input type="radio" name="tripPreset" value="quick" checked onchange="setPreset('quick')">
             <span class="preset-chip-icon">⚡</span>
             <span class="preset-chip-label">Quick escape</span>
             <span class="preset-chip-sub">Local, no train</span>
           </label>
           <label class="preset-chip">
-            <input type="radio" name="tripPreset" value="halfday" checked onchange="setPreset('halfday')">
+            <input type="radio" name="tripPreset" value="halfday" onchange="setPreset('halfday')">
             <span class="preset-chip-icon">🌄</span>
             <span class="preset-chip-label">Half-day</span>
             <span class="preset-chip-sub">1–2h by train</span>
@@ -524,7 +524,8 @@ details.api-settings[open] summary{margin-bottom:.85rem}
 
       <!-- ── Optional destination ── -->
       <div class="input-group" id="destinationGroup">
-        <label for="destination" class="dest-opt-label">🗺️ Heading somewhere specific? <span style="font-weight:300">(optional — leave blank to search everywhere)</span></label>
+        <label for="destination" class="dest-opt-label">🗺️ Heading somewhere specific? <span style="font-weight:300">(optional)</span></label>
+        <div id="destHint" style="display:none;font-size:.78rem;color:var(--sunrise);background:rgba(232,98,42,.09);border-radius:8px;padding:.35rem .7rem;margin-bottom:.35rem">💡 For best results with Half-day / Full-day, name a destination — e.g. <em>Veluwe</em>, <em>Black Forest</em>, <em>Snowdonia</em></div>
         <div class="ac-wrap">
           <input type="text" id="destination" placeholder="e.g. Black Forest, Veluwe, Snowdonia, Dolomites…" autocomplete="off">
           <div class="ac-dropdown" id="acDropdownDest"></div>
@@ -835,6 +836,12 @@ function setPreset(name) {
     trainChk.checked = p.ptJourney > 0;
     trainChk.closest('.chip').style.display = p.ptJourney > 0 ? '' : 'none';
   }
+  // Hint: show destination tip when a train preset is selected and destination is empty
+  const destHint = document.getElementById('destHint');
+  if (destHint) {
+    const needsHint = p.ptJourney > 0 && !document.getElementById('destination').value.trim();
+    destHint.style.display = needsHint ? '' : 'none';
+  }
 }
 
 // ── Destination field → auto-set destination mode ─────────────────────────────
@@ -843,12 +850,15 @@ function setPreset(name) {
 // When the field is cleared, revert to near-home mode.
 document.getElementById('destination').addEventListener('input', function() {
   selectedDestCoords = null;
-  searchMode = this.value.trim().length > 0 ? 'destination' : 'home';
+  const val = this.value.trim();
+  searchMode = val.length > 0 ? 'destination' : 'home';
+  // Hide destination hint once user starts typing
+  const destHint = document.getElementById('destHint');
+  if (destHint) destHint.style.display = 'none';
   // Also drive the autocomplete
   clearTimeout(acTimerDest);
-  const q = this.value.trim();
-  if (q.length < 3) { hideACDest(); return; }
-  acTimerDest = setTimeout(() => fetchACDest(q), 300);
+  if (val.length < 3) { hideACDest(); return; }
+  acTimerDest = setTimeout(() => fetchACDest(val), 300);
 });
 
 // ── Search mode (kept for backwards-compat; used by no-results CTAs) ─────────
@@ -1018,8 +1028,8 @@ document.getElementById('activity').addEventListener('change', function() {
 document.getElementById('walkToStop').addEventListener('input',   () => updateSlider('walkToStop',   'walkToStopVal'));
 document.getElementById('walkFromStop').addEventListener('input', () => updateSlider('walkFromStop', 'walkFromStopVal'));
 document.getElementById('ptJourney').addEventListener('input', () => updateSlider('ptJourney', 'ptJourneyVal'));
-// Init from default half-day preset, then apply activity-specific defaults
-setPreset('halfday');
+// Init from quick-escape preset (local, always finds results), then apply activity-specific defaults
+setPreset('quick');
 setSliders(document.getElementById('activity').value);
 updateTrailTypeChips(document.getElementById('activity').value);
 makeSliderEditable('walkToStop',   'walkToStopVal');
