@@ -602,15 +602,13 @@ def api_graphhopper():
 @app.route('/api/transit-time', methods=['POST'])
 def api_transit_time():
     """
-    Returns the fastest public-transport journey from origin → destination.
-    Uses Navitia (navitia.io) — free tier, good European coverage.
-    Requires NAVITIA_API_KEY env var (free registration at navitia.io).
+    Returns the fastest PT journey from origin → destination.
+    Uses transport.rest (DB HAFAS) — no API key, no registration required.
+    European inter-city coverage (NL, BE, DE, AT, CH, FR, DK, SE, NO…).
     Results are cached 7 days in transit_cache.
     """
     from datetime import datetime, timedelta, timezone
-    key = cfg('NAVITIA_API_KEY')
-    if not key:
-        return jsonify({'error': 'NAVITIA_API_KEY not configured'}), 503
+    from concurrent.futures import ThreadPoolExecutor
 
     data = request.json or {}
     try:
@@ -635,7 +633,7 @@ def api_transit_time():
         return jsonify(resp)
     db.close()
 
-    # Use next weekday at 09:00 local time — representative for typical journeys
+    # Next weekday at 09:00 UTC — representative for scheduled services
     now = datetime.now(timezone.utc)
     dep = now.replace(hour=9, minute=0, second=0, microsecond=0)
     if dep <= now or now.weekday() >= 5:
@@ -644,71 +642,100 @@ def api_transit_time():
             days += 1
         dep = (now + timedelta(days=days)).replace(hour=9, minute=0, second=0, microsecond=0)
 
-    dep_str = dep.strftime('%Y%m%dT%H%M%S')  # Navitia format: 20250521T090000
+    DB_BASE = 'https://v6.db.transport.rest'
+    HEADERS_DB = {'Accept': 'application/json', 'User-Agent': 'TrailbyRail/1.0'}
 
-    # Navitia: from/to use lon;lat format, auth is the API key as Basic username
-    import base64
-    auth = 'Basic ' + base64.b64encode(f'{key}:'.encode()).decode()
+    def find_stop(lat, lon):
+        """Return nearest DB HAFAS stop ID within 10km, or None."""
+        try:
+            r = requests.get(
+                f'{DB_BASE}/stops/nearby',
+                headers=HEADERS_DB,
+                params={'latitude': lat, 'longitude': lon, 'results': 1, 'distance': 10000},
+                timeout=8,
+            )
+            stops = r.json() if r.ok else []
+            return stops[0]['id'] if stops else None
+        except Exception:
+            return None
 
     try:
+        # Resolve origin + destination stops in parallel
+        with ThreadPoolExecutor(max_workers=2) as ex:
+            f_from = ex.submit(find_stop, o_lat, o_lon)
+            f_to   = ex.submit(find_stop, d_lat, d_lon)
+            from_id = f_from.result()
+            to_id   = f_to.result()
+
+        if not from_id or not to_id:
+            return jsonify({'error': 'No stops found near origin or destination'}), 404
+
         r = requests.get(
-            'https://api.navitia.io/v1/journeys',
-            headers={'Authorization': auth, 'Accept': 'application/json'},
+            f'{DB_BASE}/journeys',
+            headers=HEADERS_DB,
             params={
-                'from':     f'{o_lon};{o_lat}',
-                'to':       f'{d_lon};{d_lat}',
-                'datetime': dep_str,
-                'count':    1,
-                'min_nb_journeys': 1,
+                'from':       from_id,
+                'to':         to_id,
+                'departure':  dep.strftime('%Y-%m-%dT%H:%M:%S+00:00'),
+                'results':    1,
+                'stopovers':  'false',
+                'remarks':    'false',
             },
             timeout=12,
         )
-
-        if r.status_code == 404:
-            # No coverage for this region in Navitia
-            return jsonify({'error': 'No PT coverage for this area'}), 404
         r.raise_for_status()
-
-        nav = r.json()
-        journeys = nav.get('journeys', [])
+        payload  = r.json()
+        journeys = payload.get('journeys', [])
         if not journeys:
-            return jsonify({'error': 'No PT route found'}), 404
+            return jsonify({'error': 'No journey found'}), 404
 
-        best = journeys[0]
-        duration_mins = round(best['duration'] / 60)
+        journey = journeys[0]
+        legs_raw = journey.get('legs', [])
 
-        # Map Navitia physical modes to icons
-        MODE_ICON = {
-            'Train': '🚂', 'RapidTransit': '🚂', 'LocalTrain': '🚂',
-            'LongDistanceTrain': '🚂', 'Bus': '🚌', 'Metro': '🚇',
-            'Tramway': '🚊', 'Ferry': '⛴️', 'Coach': '🚌',
-            'Shuttle': '🚌', 'Taxi': '🚖',
+        # Duration: sum legs departure→arrival
+        def parse_iso(s):
+            if not s: return None
+            return datetime.fromisoformat(s.replace('Z', '+00:00'))
+
+        if legs_raw:
+            t0 = parse_iso(legs_raw[0].get('departure') or legs_raw[0].get('plannedDeparture'))
+            t1 = parse_iso(legs_raw[-1].get('arrival')  or legs_raw[-1].get('plannedArrival'))
+            duration_mins = round((t1 - t0).total_seconds() / 60) if t0 and t1 else 0
+        else:
+            duration_mins = 0
+
+        if duration_mins <= 0:
+            return jsonify({'error': 'Could not determine journey duration'}), 404
+
+        PRODUCT_ICON = {
+            'nationalExpress': '🚂', 'national': '🚂',
+            'regionalExp': '🚂', 'regional': '🚂',
+            'suburban': '🚋', 'bus': '🚌',
+            'ferry': '⛴️', 'subway': '🚇', 'tram': '🚊', 'taxi': '🚖',
         }
 
         legs_out = []
-        for section in best.get('sections', []):
-            stype = section.get('type', '')
-            dur   = round(section.get('duration', 0) / 60)
-            if stype == 'street_network' or stype == 'crow_fly':
-                dist_m = round(section.get('geojson', {}).get('properties', [{}])[0].get('length', 0) if section.get('geojson') else 0)
-                if dur > 0:
-                    legs_out.append({'type': 'walk', 'mins': dur, 'dist_m': dist_m})
-            elif stype == 'public_transport':
-                di   = section.get('display_informations', {})
-                mode = di.get('physical_mode', 'Train')
-                icon = MODE_ICON.get(mode, '🚂')
+        for leg in legs_raw:
+            dep_t = parse_iso(leg.get('departure') or leg.get('plannedDeparture'))
+            arr_t = parse_iso(leg.get('arrival')   or leg.get('plannedArrival'))
+            mins  = round((arr_t - dep_t).total_seconds() / 60) if dep_t and arr_t else 0
+            if leg.get('walking') or leg.get('transfer'):
+                if mins > 0:
+                    legs_out.append({'type': 'walk', 'mins': mins,
+                                     'dist_m': round(leg.get('distance') or 0)})
+            else:
+                line    = leg.get('line') or {}
+                product = line.get('product', 'national')
+                icon    = PRODUCT_ICON.get(product, '🚂')
                 legs_out.append({
                     'type': 'pt',
                     'icon': icon,
-                    'line': di.get('headsign') or di.get('label') or '',
-                    'desc': di.get('description') or mode,
-                    'from': section.get('from', {}).get('name', ''),
-                    'to':   section.get('to',   {}).get('name', ''),
-                    'mins': dur,
+                    'line': line.get('name') or line.get('id') or '',
+                    'desc': leg.get('direction') or '',
+                    'from': (leg.get('origin')      or {}).get('name', ''),
+                    'to':   (leg.get('destination') or {}).get('name', ''),
+                    'mins': mins,
                 })
-            elif stype == 'transfer' or stype == 'waiting':
-                if dur > 0:
-                    legs_out.append({'type': 'walk', 'mins': dur, 'dist_m': 0})
 
         legs_json = json.dumps(legs_out)
         db = get_db()
@@ -723,7 +750,7 @@ def api_transit_time():
         body = ''
         try: body = e.response.text[:200]
         except: pass
-        return jsonify({'error': f'Navitia {e.response.status_code}', 'detail': body}), 502
+        return jsonify({'error': f'DB API {e.response.status_code}', 'detail': body}), 502
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

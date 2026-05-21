@@ -2329,7 +2329,7 @@ async function fetchWeatherForCard(idx, lat, lon) {
   } catch { /* silently skip */ }
 }
 
-// ── Real transit times via Navitia ───────────────────────────────────────────
+// ── Real transit times via transport.rest (DB HAFAS, no API key) ─────────────
 async function fetchTransitTimes(results) {
   if (!homeLat || !homeLon) {
     // No home coords — clear all spinners
@@ -2344,12 +2344,6 @@ async function fetchTransitTimes(results) {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({origin_lat:homeLat, origin_lon:homeLon, dest_lat:probe.lat, dest_lon:probe.lon})
       });
-      if (pr.status === 503) {
-        // No API key — silently clear all spinners, no error shown
-        results.forEach((_, i) => { const el = document.getElementById(`transit-${i}`); if (el) el.innerHTML = ''; });
-        return;
-      }
-      // Process first result from probe
       const d = await pr.json();
       _applyTransitResult(0, d, results);
     } catch {
