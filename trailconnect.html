@@ -1441,30 +1441,35 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
         .map(s => ({...s, distToTrail: dist(trail.lat, trail.lon, s.lat, s.lon)}))
         .filter(s => s.distToTrail <= walkFromStop);
 
-      if (!isDestMode) {
-        if (ptJourney === 0) {
-          // Local mode: no trains (too far to walk)
-          connecting = connecting.filter(s => s.icon !== '🚂');
+      if (isDestMode) {
+        // Destination mode: trains first (they're the arrival station), then by distance
+        connecting = connecting.sort((a, b) => {
+          const at = a.icon === '🚂' ? 0 : 1, bt = b.icon === '🚂' ? 0 : 1;
+          return at !== bt ? at - bt : a.distToTrail - b.distToTrail;
+        });
+      } else if (ptJourney === 0) {
+        // Local mode: no trains needed (too far to walk to/from), sort by distance
+        connecting = connecting
+          .filter(s => s.icon !== '🚂')
+          .sort((a, b) => a.distToTrail - b.distToTrail);
+      } else {
+        // PT journey mode: trains first; if none reachable, fall back to bus
+        const hasTrain = connecting.some(s => s.icon === '🚂');
+        if (hasTrain) {
+          connecting = connecting.sort((a, b) => {
+            const at = a.icon === '🚂' ? 0 : 1, bt = b.icon === '🚂' ? 0 : 1;
+            return at !== bt ? at - bt : a.distToTrail - b.distToTrail;
+          });
         } else {
-          // PT journey mode: prefer train stations, fall back to bus if none nearby
-          const hasTrain = connecting.some(s => s.icon === '🚂');
-          if (hasTrain) {
-            // Sort trains first, then by distance
-            connecting = connecting.sort((a, b) => {
-              const at = a.icon === '🚂' ? 0 : 1, bt = b.icon === '🚂' ? 0 : 1;
-              return at !== bt ? at - bt : a.distToTrail - b.distToTrail;
-            });
-          } else {
-            // No train within walkFromStop — keep bus/tram stops as fallback leg
-            // (user takes train to area, then local bus to this stop)
-            connecting = connecting.filter(s => s.icon === '🚌' || s.icon === '🚎' || s.icon === '🚋');
-            // Flag as bus-connected so the journey chain can show a bus leg
-            connecting = connecting.map(s => ({...s, viaBus: true}));
-          }
+          // No train within walkFromStop — local bus as the final leg
+          connecting = connecting
+            .filter(s => s.icon === '🚌' || s.icon === '🚎' || s.icon === '🚋')
+            .sort((a, b) => a.distToTrail - b.distToTrail)
+            .map(s => ({...s, viaBus: true}));
         }
       }
 
-      connecting = connecting.sort((a, b) => a.distToTrail - b.distToTrail).slice(0, 4);
+      connecting = connecting.slice(0, 2); // 2 stops is enough — trains first, then closest
 
       // ── Duration estimates ────────────────────────────────────────────────────
       // Walk speed: 5 km/h = 83.3 m/min  |  Cycle speed: 15 km/h = 250 m/min
@@ -1499,7 +1504,18 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
 
       return {...trail, stops: connecting, departureStop, journeyMins, trailMins};
     }).filter(t => t.stops.length > 0)
-      .sort((a, b) => a.stops[0].distToTrail - b.stops[0].distToTrail);
+      .sort((a, b) => {
+        // Sort by total estimated journey time when available (local + PT modes)
+        if (a.journeyMins != null && b.journeyMins != null) return a.journeyMins - b.journeyMins;
+        // Destination mode: trains first (prefer trails closest to a station)
+        if (isDestMode) {
+          const aT = a.stops[0]?.icon === '🚂' ? 0 : 1;
+          const bT = b.stops[0]?.icon === '🚂' ? 0 : 1;
+          if (aT !== bT) return aT - bT;
+        }
+        // Fallback: shortest walk from stop to trailhead
+        return (a.stops[0]?.distToTrail ?? Infinity) - (b.stops[0]?.distToTrail ?? Infinity);
+      });
 
     currentTrails = results;
     btn.disabled = false;
