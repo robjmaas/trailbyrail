@@ -697,6 +697,31 @@ locInput.addEventListener('keydown', function(e) {
 
 locInput.addEventListener('blur', () => setTimeout(hideAC, 150));
 
+// ── Curated hiking areas for random suggestion fallback ──────────────────────
+// Used when scatter search returns nothing — we pick a random reachable area.
+const SUGGESTED_DESTINATIONS = [
+  { name: 'Veluwe',            region: 'Netherlands',   lat: 52.03,  lon:  5.82 },
+  { name: 'Ardennes',          region: 'Belgium',        lat: 50.14,  lon:  5.57 },
+  { name: 'Eifel',             region: 'Germany',        lat: 50.36,  lon:  6.57 },
+  { name: 'Black Forest',      region: 'Germany',        lat: 48.00,  lon:  8.17 },
+  { name: 'Harz',              region: 'Germany',        lat: 51.80,  lon: 10.73 },
+  { name: 'Saxon Switzerland', region: 'Germany',        lat: 50.93,  lon: 14.30 },
+  { name: 'Teutoburg Forest',  region: 'Germany',        lat: 51.94,  lon:  8.57 },
+  { name: 'Pfälzerwald',       region: 'Germany',        lat: 49.36,  lon:  7.77 },
+  { name: 'Thuringian Forest', region: 'Germany',        lat: 50.62,  lon: 10.77 },
+  { name: 'Bavarian Alps',     region: 'Germany',        lat: 47.65,  lon: 11.02 },
+  { name: 'Vosges',            region: 'France',         lat: 48.12,  lon:  7.08 },
+  { name: 'Jura',              region: 'France/Switzerland', lat: 46.78, lon: 5.98 },
+  { name: 'Dolomites',         region: 'Italy',          lat: 46.41,  lon: 11.84 },
+  { name: 'Graubünden',        region: 'Switzerland',    lat: 46.85,  lon:  9.53 },
+  { name: 'Peak District',     region: 'England',        lat: 53.35,  lon: -1.83 },
+  { name: 'Lake District',     region: 'England',        lat: 54.45,  lon: -3.09 },
+  { name: 'Snowdonia',         region: 'Wales',          lat: 52.91,  lon: -3.89 },
+  { name: 'Yorkshire Dales',   region: 'England',        lat: 54.20,  lon: -2.19 },
+  { name: 'Bohemian Switzerland', region: 'Czech Republic', lat: 50.88, lon: 14.23 },
+  { name: 'Pyrenees',          region: 'Spain/France',   lat: 42.78,  lon:  1.57 },
+];
+
 async function fetchAC(q) {
   try {
     const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=6&addressdetails=1`, {headers:{'Accept-Language':'nl,en'}});
@@ -1637,7 +1662,94 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
         noTitle = `Nothing found near ${destLabel}`;
         noBody  = `No trails with a nearby stop were found within ${fmt(destSearchRadius)} of that area. Try a more specific place name — for example "Freudenstadt" instead of "Black Forest" — or increase the <strong>Walk from stop to trail</strong> radius.`;
       } else if (ptJourney > 0) {
-        // ── Scatter found nothing → auto-fallback to local search ──────────────
+        // ── Scatter found nothing → try random reachable suggested destinations ─
+        // Sort by aerial distance, then shuffle the closest 8 so results feel
+        // random while still favouring reachable areas. Hard cap at 500km so
+        // we don't suggest the Dolomites to someone doing a 10-min Quick escape.
+        const maxSuggestDist = Math.max(ptJourney * 3, 150000); // at least 150km
+        const nearby = SUGGESTED_DESTINATIONS
+          .map(d => ({...d, _d: dist(homeLat, homeLon, d.lat, d.lon)}))
+          .filter(d => d._d <= maxSuggestDist)
+          .sort((a, b) => a._d - b._d)
+          .slice(0, 8);
+        // Shuffle the shortlist so we don't always pick the exact same area
+        for (let i = nearby.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [nearby[i], nearby[j]] = [nearby[j], nearby[i]];
+        }
+        const toTry = nearby.slice(0, 3);
+
+        for (const suggestion of toTry) {
+          resultsDiv.innerHTML = `<div class="loading">
+            <div class="loading-spinner">🎲</div>
+            <div class="loading-msg">Exploring ${suggestion.name}…</div>
+          </div>`;
+          const sugRadius = 25000;
+          try {
+            const [sugStops, sugOsm, sugOda, sugCustom] = await Promise.all([
+              fetchStops(suggestion.lat, suggestion.lon, sugRadius, ptModes).catch(() => []),
+              fetchTrails(suggestion.lat, suggestion.lon, sugRadius, trailSubtypes).catch(() => []),
+              fetchOutdooractive(suggestion.lat, suggestion.lon, sugRadius, trailSubtypes).catch(() => []),
+              fetchCustomRoutes(suggestion.lat, suggestion.lon, sugRadius),
+            ]);
+            const sugOsmNames = new Set(sugOsm.map(t => t.name.toLowerCase()));
+            const sugTrails = [...sugCustom, ...sugOsm, ...sugOda.filter(t => !sugOsmNames.has(t.name.toLowerCase()))];
+            const moveSpeedSug = isCycling ? 250 : (5000 / 60);
+
+            const sugResults = sugTrails.map(trail => {
+              const connecting = sugStops
+                .map(s => ({...s, distToTrail: dist(trail.lat, trail.lon, s.lat, s.lon)}))
+                .filter(s => s.distToTrail <= walkFromStop)
+                .sort((a, b) => {
+                  const at = a.icon === '🚂' ? 0 : 1, bt = b.icon === '🚂' ? 0 : 1;
+                  return at !== bt ? at - bt : a.distToTrail - b.distToTrail;
+                })
+                .slice(0, 2);
+              let trailMins = null;
+              if (trail.trailDist) {
+                const dm = parseFloat(trail.trailDist) * 1000;
+                if (!isNaN(dm) && dm > 0) trailMins = Math.round(dm / moveSpeedSug);
+              }
+              return {...trail, stops: connecting, departureStop: null, journeyMins: null, trailMins};
+            }).filter(t => t.stops.length > 0)
+              .sort((a, b) => (a.stops[0]?.distToTrail ?? Infinity) - (b.stops[0]?.distToTrail ?? Infinity));
+
+            if (sugResults.length > 0) {
+              lastPtJourney = ptJourney;
+              currentTrails = sugResults;
+              btn.disabled  = false;
+              const safeName = suggestion.name.replace(/'/g, "\\'");
+              resultsDiv.innerHTML = `
+                <div style="display:flex;align-items:center;gap:.65rem;padding:.7rem 1rem;background:rgba(58,125,82,.1);border:1px solid rgba(58,125,82,.35);border-radius:12px;margin-bottom:1.25rem;font-size:.85rem;color:var(--forest-dark)">
+                  <span style="font-size:1.3rem">🎲</span>
+                  <span><strong>Suggested: ${suggestion.name}</strong> — within your train range.
+                  <button class="act-btn" style="margin-left:.5rem;padding:.3rem .75rem;font-size:.78rem"
+                    onclick="document.getElementById('destination').value='${safeName}';document.getElementById('destination').dispatchEvent(new Event('input'));searchMode='destination';document.querySelector('.search-card').scrollIntoView({behavior:'smooth'})">Search here →</button></span>
+                </div>
+                <div class="results-meta">
+                  <span class="results-count">${sugResults.length} trail${sugResults.length !== 1 ? 's' : ''} found</span>
+                  <span class="results-hint">🎲 ${suggestion.name} · ${suggestion.region}</span>
+                </div>
+                <div class="filter-bar" id="filterBar">
+                  <label>Min km <input type="number" id="filterMinKm" min="0" step="0.5" placeholder="0" oninput="applyFilters()"></label>
+                  <label>Max km <input type="number" id="filterMaxKm" min="0" step="0.5" placeholder="∞" oninput="applyFilters()"></label>
+                  <label title="Max time on the trail itself">⏱️ Max trail time <input type="number" id="filterMaxTravel" min="0" step="0.5" placeholder="∞" style="width:55px" oninput="applyFilters()"> h</label>
+                  <label><input type="checkbox" id="filterHideCompleted" onchange="applyFilters()"> Hide completed</label>
+                </div>
+                <div class="results-grid" id="resultsGrid">
+                  ${sugResults.map((t, i) => renderCard(t, i)).join('')}
+                </div>`;
+              sugResults.forEach((t, i) => fetchWeatherForCard(i, t.lat, t.lon));
+              highlightPendingTrail();
+              fetchTransitTimes(sugResults);
+              return;
+            }
+          } catch(e) {
+            console.warn('[TrailbyRail] suggestion search failed for', suggestion.name, e);
+          }
+        }
+
+        // ── All suggestions failed → fall back to local search ────────────────
         resultsDiv.innerHTML = `<div class="loading">
           <div class="loading-spinner">🔄</div>
           <div class="loading-msg">No train trails found — trying local trails near you…</div>
@@ -1674,7 +1786,7 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
           .sort((a, b) => (a.journeyMins ?? Infinity) - (b.journeyMins ?? Infinity));
 
         if (!fbResults.length) {
-          // Both scatter and local found nothing
+          // Scatter + suggestions + local all found nothing
           noIcon  = '🏞️';
           noTitle = 'No trails found';
           noBody  = 'We couldn\'t find trails near a public transport stop in this area. Try typing a specific destination like <strong>Veluwe</strong> or <strong>Black Forest</strong>.';
@@ -1708,7 +1820,7 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
           fetchTransitTimes(fbResults);
           return;
         }
-        // Fall through to show noIcon/noTitle/noBody if both searches empty
+        // Fall through to show noIcon/noTitle/noBody if all searches empty
       } else {
         noIcon  = '🏞️';
         noTitle = 'No trails found nearby';
@@ -1981,13 +2093,13 @@ function renderCard(trail, idx) {
 
     <div class="action-row">
       <a class="act-btn primary" href="${transitUrl}" target="_blank">🚌 Plan journey</a>
-      <a class="act-btn" href="${legUrl}" target="_blank">🥾 Stop → Trail</a>
+      <button class="act-btn" onclick="toggleLoopPanel(${idx})">🔁 Loop</button>
       <a class="act-btn" href="${trailUrl}" target="_blank">🗺️ Map</a>
-      <button class="act-btn" onclick="downloadGPX(${idx})">📥 GPX</button>
+      <a class="act-btn" href="${legUrl}" target="_blank">🥾 Stop → Trail</a>
       <button class="act-btn" onclick="toggleMoreActions(${idx})">··· More</button>
     </div>
     <div id="more-${idx}" class="more-actions">
-      <button class="act-btn" onclick="toggleLoopPanel(${idx})">🔁 Loop</button>
+      <button class="act-btn" onclick="downloadGPX(${idx})">📥 GPX</button>
       <button class="act-btn" onclick="toggleGpxPanel(${idx})">🔍 Find GPX</button>
       ${trail.oda_url ? `<a class="act-btn" href="${trail.oda_url}" target="_blank">🌐 Outdooractive</a>` : ''}
       <button class="act-btn" id="shareBtn-${idx}" onclick="shareTrail(${idx})">🔗 Share</button>
