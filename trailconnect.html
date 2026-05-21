@@ -1493,8 +1493,8 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
       const searchDist  = Math.min(ptJourney, 200000) * 0.7;
       const trailRadius = Math.max(walkFromStop, 15000);   // at least 15km
       const stopRadius  = Math.max(walkFromStop, 10000);   // at least 10km
-      // 3 scatter points × 1 combined query each = 3 total Overpass calls (+ 1 home stops)
-      const scatterPts = generateScatterPoints(homeLat, homeLon, searchDist, 3);
+      // 5 scatter points evenly spaced (72° apart) for better directional coverage
+      const scatterPts = generateScatterPoints(homeLat, homeLon, searchDist, 5);
 
       console.log('[TrailbyRail] scatter at', (searchDist/1000).toFixed(0)+'km,',
         scatterPts.map(p => `(${p.lat.toFixed(2)},${p.lon.toFixed(2)})`).join(' '));
@@ -1637,16 +1637,78 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
         noTitle = `Nothing found near ${destLabel}`;
         noBody  = `No trails with a nearby stop were found within ${fmt(destSearchRadius)} of that area. Try a more specific place name — for example "Freudenstadt" instead of "Black Forest" — or increase the <strong>Walk from stop to trail</strong> radius.`;
       } else if (ptJourney > 0) {
-        noIcon  = '🚂';
-        noTitle = 'No trails found on this route';
-        noBody  = `Nothing reachable within <strong>${fmt(walkFromStop)}</strong> of a station in that direction. Try:`;
-        noTip   = `<ul style="text-align:left;margin:.6rem auto;max-width:360px;line-height:1.9;font-size:.9rem">
-          <li>Switch to <strong>Full day</strong> to search further</li>
-          <li>Type a destination (e.g. Veluwe, Ardennes) to search a specific area
-            <br><button class="act-btn" style="margin-top:.35rem" onclick="setSearchMode('destination');document.querySelector('.search-card').scrollIntoView({behavior:'smooth'})">🗺️ Add a destination</button>
-          </li>
-          <li>Open <strong>Custom distances</strong> to fine-tune the walk radius</li>
-        </ul>`;
+        // ── Scatter found nothing → auto-fallback to local search ──────────────
+        resultsDiv.innerHTML = `<div class="loading">
+          <div class="loading-spinner">🔄</div>
+          <div class="loading-msg">No train trails found — trying local trails near you…</div>
+        </div>`;
+
+        const localRadius = Math.max(walkToStop + walkFromStop, 8000);
+        const localPtModes = ptModes.filter(m => m !== 'train');
+        const [fbStops, fbOsm, fbOda, fbCustom] = await Promise.all([
+          fetchStops(homeLat, homeLon, localRadius, localPtModes.length ? localPtModes : ['bus','tram']).catch(() => []),
+          fetchTrails(homeLat, homeLon, localRadius, trailSubtypes).catch(() => []),
+          fetchOutdooractive(homeLat, homeLon, localRadius, trailSubtypes).catch(() => []),
+          fetchCustomRoutes(homeLat, homeLon, localRadius),
+        ]);
+
+        const fbNames = new Set(fbOsm.map(t => t.name.toLowerCase()));
+        const fbTrails = [...fbCustom, ...fbOsm, ...fbOda.filter(t => !fbNames.has(t.name.toLowerCase()))];
+        const moveSpeedFb = isCycling ? 250 : (5000/60);
+
+        const fbResults = fbTrails.map(trail => {
+          let connecting = fbStops
+            .map(s => ({...s, distToTrail: dist(trail.lat, trail.lon, s.lat, s.lon)}))
+            .filter(s => s.distToTrail <= walkFromStop)
+            .sort((a, b) => a.distToTrail - b.distToTrail)
+            .slice(0, 2);
+          let trailMins = null;
+          if (trail.trailDist) {
+            const dm = parseFloat(trail.trailDist) * 1000;
+            if (!isNaN(dm) && dm > 0) trailMins = Math.round(dm / moveSpeedFb);
+          }
+          const b0 = connecting[0];
+          const journeyMins = b0 ? Math.round((b0.distFromHome + b0.distToTrail) / moveSpeedFb) : null;
+          return {...trail, stops: connecting, departureStop: null, journeyMins, trailMins};
+        }).filter(t => t.stops.length > 0)
+          .sort((a, b) => (a.journeyMins ?? Infinity) - (b.journeyMins ?? Infinity));
+
+        if (!fbResults.length) {
+          // Both scatter and local found nothing
+          noIcon  = '🏞️';
+          noTitle = 'No trails found';
+          noBody  = 'We couldn\'t find trails near a public transport stop in this area. Try typing a specific destination like <strong>Veluwe</strong> or <strong>Black Forest</strong>.';
+          noTip   = `<button class="act-btn" style="margin-top:.75rem" onclick="setSearchMode('destination');document.querySelector('.search-card').scrollIntoView({behavior:'smooth'})">🗺️ Add a destination</button>`;
+        } else {
+          // Show local fallback results with a banner
+          lastPtJourney = 0;
+          currentTrails  = fbResults;
+          btn.disabled   = false;
+          resultsDiv.innerHTML = `
+            <div style="display:flex;align-items:center;gap:.65rem;padding:.7rem 1rem;background:rgba(240,192,96,.15);border:1px solid rgba(240,192,96,.4);border-radius:12px;margin-bottom:1.25rem;font-size:.85rem;color:var(--forest-dark)">
+              <span style="font-size:1.3rem">🚂</span>
+              <span>No train-accessible trails found in that range — showing <strong>local trails</strong> near you instead.
+              <button class="act-btn" style="margin-left:.5rem;padding:.3rem .75rem;font-size:.78rem" onclick="setSearchMode('destination');document.querySelector('.search-card').scrollIntoView({behavior:'smooth'})">Try a destination →</button></span>
+            </div>
+            <div class="results-meta">
+              <span class="results-count">${fbResults.length} trail${fbResults.length !== 1 ? 's' : ''} found</span>
+              <span class="results-hint">Local · within ${fmt(localRadius)}</span>
+            </div>
+            <div class="filter-bar" id="filterBar">
+              <label>Min km <input type="number" id="filterMinKm" min="0" step="0.5" placeholder="0" oninput="applyFilters()"></label>
+              <label>Max km <input type="number" id="filterMaxKm" min="0" step="0.5" placeholder="∞" oninput="applyFilters()"></label>
+              <label title="Max time on the trail itself">⏱️ Max trail time <input type="number" id="filterMaxTravel" min="0" step="0.5" placeholder="∞" style="width:55px" oninput="applyFilters()"> h</label>
+              <label><input type="checkbox" id="filterHideCompleted" onchange="applyFilters()"> Hide completed</label>
+            </div>
+            <div class="results-grid" id="resultsGrid">
+              ${fbResults.map((t, i) => renderCard(t, i)).join('')}
+            </div>`;
+          fbResults.forEach((t, i) => fetchWeatherForCard(i, t.lat, t.lon));
+          highlightPendingTrail();
+          fetchTransitTimes(fbResults);
+          return;
+        }
+        // Fall through to show noIcon/noTitle/noBody if both searches empty
       } else {
         noIcon  = '🏞️';
         noTitle = 'No trails found nearby';
