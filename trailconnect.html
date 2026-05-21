@@ -34,6 +34,7 @@ header{text-align:center;padding:3.5rem 1rem 2.5rem;animation:slideDown .9s cubi
 .input-group{display:flex;flex-direction:column;gap:.5rem}
 label{font-weight:600;color:var(--forest-dark);font-size:.88rem;text-transform:uppercase;letter-spacing:.05em}
 input[type=text],select{padding:1rem 1.25rem;border:2px solid var(--moss);border-radius:12px;font-size:1rem;font-family:'Public Sans',sans-serif;transition:all .3s ease;background:var(--cloud)}
+#location{font-size:1.1rem;padding:1.15rem 1.25rem;font-weight:600}
 input[type=text]:focus,select:focus{outline:none;border-color:var(--sunrise);background:white;box-shadow:0 4px 12px var(--shadow)}
 .location-row{display:flex;gap:.75rem}
 .location-row input{flex:1}
@@ -81,7 +82,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
 .trail-card.trail-highlight{animation:cardPing 2s ease-out forwards!important;border-left-color:var(--sunrise)!important}
 .trail-card:hover{transform:translateX(6px);box-shadow:0 12px 40px var(--shadow);border-left-color:var(--sunrise)}
 .trail-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1.25rem;gap:1rem}
-.trail-name{font-family:'Righteous',cursive;font-size:1.35rem;color:var(--forest-dark);margin-bottom:.2rem}
+.trail-name{font-family:'Righteous',cursive;font-size:1.45rem;color:var(--forest-dark);margin-bottom:.25rem;line-height:1.2}
 .trail-sub{font-size:.83rem;color:var(--moss);font-weight:600}
 .type-badge{display:inline-block;padding:.35rem .85rem;border-radius:8px;font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;flex-shrink:0;margin-top:.2rem}
 .badge-hiking{background:linear-gradient(135deg,var(--moss),var(--forest-med));color:white}
@@ -156,8 +157,8 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
 .diff-moderate{color:#f57c00;font-weight:700;font-size:.8rem}
 .diff-hard,.diff-difficult{color:#c62828;font-weight:700;font-size:.8rem}
 details.api-settings{margin-top:1rem;border-top:2px dashed rgba(74,124,89,.2);padding-top:1rem}
-details.api-settings summary{font-size:.85rem;font-weight:600;color:var(--moss);cursor:pointer;user-select:none;list-style:none;display:flex;align-items:center;gap:.4rem}
-details.api-settings summary::before{content:'⚙️'}
+details.api-settings summary{font-size:.8rem;font-weight:500;color:rgba(58,125,82,.7);cursor:pointer;user-select:none;list-style:none;display:flex;align-items:center;gap:.4rem;letter-spacing:.02em}
+details.api-settings summary::before{content:'⚙️';opacity:.6}
 details.api-settings[open] summary{margin-bottom:.85rem}
 .api-key-row{display:flex;flex-direction:column;gap:.4rem}
 .api-key-row small{font-size:.78rem;color:var(--moss)}
@@ -215,10 +216,19 @@ details.api-settings[open] summary{margin-bottom:.85rem}
 @media(max-width:620px){
   .container{padding:.75rem}
   /* Compact header — show wordmark only, no big logo or subtitle */
-  header{padding:1.25rem .75rem .85rem}
+  header{padding:1.1rem .75rem .75rem}
   .logo-mark{display:none}
   .hero-slogan{display:none}
-  .wordmark{font-size:2.2rem;margin-bottom:.35rem}
+  .wordmark{font-size:2rem;margin-bottom:.3rem}
+  /* Activity chips — tighter on mobile */
+  .activity-chip{padding:.65rem .2rem}
+  .activity-chip-icon{font-size:1.3rem}
+  .activity-chip-label{font-size:.68rem}
+  /* Preset chips — slightly shorter on mobile */
+  .preset-chip{padding:.85rem .3rem}
+  .preset-chip-icon{font-size:1.5rem}
+  .preset-chip-label{font-size:.82rem}
+  .preset-chip-sub{font-size:.64rem}
   .auth-bar{margin-top:.5rem;gap:.35rem}
   .auth-bar-btn{padding:.45rem .8rem;font-size:.78rem}
   /* Search card */
@@ -271,16 +281,23 @@ details.api-settings[open] summary{margin-bottom:.85rem}
 /* ── Done badge ── */
 .trail-card.done-trail{opacity:.8;border-left-color:var(--moss)!important}
 .act-btn.done-active{background:var(--moss);color:white;border-color:var(--moss)}
+/* ── Activity chips ── */
+.activity-chips{display:flex;gap:.5rem}
+.activity-chip{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.22rem;padding:.8rem .25rem;border:2px solid var(--moss);border-radius:14px;cursor:pointer;background:var(--cloud);transition:all .2s;font-family:'Public Sans',sans-serif;line-height:1}
+.activity-chip.active{background:var(--forest-dark);border-color:var(--forest-dark);box-shadow:0 3px 10px rgba(13,36,22,.35)}
+.activity-chip-icon{font-size:1.55rem}
+.activity-chip-label{font-size:.75rem;font-weight:700;color:var(--forest-dark)}
+.activity-chip.active .activity-chip-label{color:#fff}
 /* ── Trip presets ── */
 .preset-chips{display:flex;gap:.6rem}
-.preset-chip{flex:1;display:flex;flex-direction:column;align-items:center;gap:.18rem;padding:.75rem .4rem;border:2px solid var(--moss);border-radius:14px;cursor:pointer;text-align:center;background:var(--cloud);transition:all .2s;user-select:none}
+.preset-chip{flex:1;display:flex;flex-direction:column;align-items:center;gap:.28rem;padding:1.1rem .4rem;border:2px solid var(--moss);border-radius:16px;cursor:pointer;text-align:center;background:var(--cloud);transition:all .2s;user-select:none}
 .preset-chip input[type=radio]{display:none}
-.preset-chip:has(input:checked){background:linear-gradient(135deg,var(--moss),var(--forest-med));border-color:var(--moss);box-shadow:0 3px 10px rgba(58,125,82,.4)}
-.preset-chip-icon{font-size:1.55rem;line-height:1}
-.preset-chip-label{font-weight:700;font-size:.88rem;color:var(--forest-dark);line-height:1.2}
+.preset-chip:has(input:checked){background:linear-gradient(160deg,var(--moss) 0%,var(--forest-dark) 100%);border-color:var(--moss);box-shadow:0 4px 14px rgba(58,125,82,.45)}
+.preset-chip-icon{font-size:1.8rem;line-height:1}
+.preset-chip-label{font-weight:700;font-size:.9rem;color:var(--forest-dark);line-height:1.2}
 .preset-chip:has(input:checked) .preset-chip-label{color:#fff}
-.preset-chip-sub{font-size:.7rem;color:var(--moss);line-height:1.2}
-.preset-chip:has(input:checked) .preset-chip-sub{color:rgba(255,255,255,.78)}
+.preset-chip-sub{font-size:.7rem;color:var(--moss);line-height:1.3;padding:0 .2rem}
+.preset-chip:has(input:checked) .preset-chip-sub{color:rgba(255,255,255,.72)}
 .dest-opt-label{font-weight:400;font-size:.82rem;color:var(--moss);text-transform:none;letter-spacing:0}
 /* ── More-actions row ── */
 .more-actions{display:none;margin-top:.5rem;padding-top:.75rem;border-top:1px dashed rgba(74,124,89,.2)}
@@ -470,7 +487,7 @@ details.api-settings[open] summary{margin-bottom:.85rem}
   <div class="search-card">
     <form class="search-form" id="searchForm">
       <div class="input-group">
-        <label for="location">📍 Your address or area</label>
+        <label for="location">📍 Where are you starting from?</label>
         <div class="location-row">
           <div class="ac-wrap">
             <input type="text" id="location" placeholder="e.g. Amsterdam Centraal, Breda, Utrecht…" required autocomplete="off">
@@ -480,44 +497,56 @@ details.api-settings[open] summary{margin-bottom:.85rem}
         </div>
       </div>
 
-      <div class="form-row">
-        <div class="input-group">
-          <label for="activity">Activity</label>
-          <select id="activity">
-            <option value="hiking">🥾 Hiking / Running</option>
-            <option value="cycling">🚴 Cycling</option>
-            <option value="swimming">🏊 Swimming</option>
-            <option value="skiing">⛷️ Skiing</option>
-          </select>
+      <div class="input-group">
+        <label>Activity</label>
+        <div class="activity-chips" id="activityChips">
+          <button type="button" class="activity-chip active" data-val="hiking" onclick="pickActivity('hiking')">
+            <span class="activity-chip-icon">🥾</span>
+            <span class="activity-chip-label">Hiking</span>
+          </button>
+          <button type="button" class="activity-chip" data-val="cycling" onclick="pickActivity('cycling')">
+            <span class="activity-chip-icon">🚴</span>
+            <span class="activity-chip-label">Cycling</span>
+          </button>
+          <button type="button" class="activity-chip" data-val="swimming" onclick="pickActivity('swimming')">
+            <span class="activity-chip-icon">🏊</span>
+            <span class="activity-chip-label">Swimming</span>
+          </button>
+          <button type="button" class="activity-chip" data-val="skiing" onclick="pickActivity('skiing')">
+            <span class="activity-chip-icon">⛷️</span>
+            <span class="activity-chip-label">Skiing</span>
+          </button>
         </div>
-      </div>
-
-      <div class="input-group" id="trailTypeGroup">
-        <label>Trail types</label>
-        <div class="chip-row" id="trailTypeChips"></div>
+        <!-- Hidden select keeps existing JS working -->
+        <select id="activity" style="display:none">
+          <option value="hiking">hiking</option>
+          <option value="cycling">cycling</option>
+          <option value="swimming">swimming</option>
+          <option value="skiing">skiing</option>
+        </select>
       </div>
 
       <!-- ── Trip presets ── -->
       <div class="input-group">
-        <label>How far do you want to go?</label>
+        <label style="font-size:.78rem;opacity:.7;font-weight:500;text-transform:none;letter-spacing:.03em">How far do you want to go?</label>
         <div class="preset-chips">
           <label class="preset-chip">
             <input type="radio" name="tripPreset" value="quick" checked onchange="setPreset('quick')">
             <span class="preset-chip-icon">⚡</span>
             <span class="preset-chip-label">Quick escape</span>
-            <span class="preset-chip-sub">Local, no train</span>
+            <span class="preset-chip-sub">Walk or cycle, no train</span>
           </label>
           <label class="preset-chip">
             <input type="radio" name="tripPreset" value="halfday" onchange="setPreset('halfday')">
             <span class="preset-chip-icon">🌄</span>
             <span class="preset-chip-label">Half-day</span>
-            <span class="preset-chip-sub">1–2h by train</span>
+            <span class="preset-chip-sub">Train + wilder trails</span>
           </label>
           <label class="preset-chip">
             <input type="radio" name="tripPreset" value="fullday" onchange="setPreset('fullday')">
             <span class="preset-chip-icon">🏕️</span>
             <span class="preset-chip-label">Full day</span>
-            <span class="preset-chip-sub">Go further</span>
+            <span class="preset-chip-sub">Go far, stay longer</span>
           </label>
         </div>
       </div>
@@ -536,6 +565,10 @@ details.api-settings[open] summary{margin-bottom:.85rem}
       <details class="api-settings" id="advancedSettings">
         <summary>Custom distances &amp; transport</summary>
         <div style="display:flex;flex-direction:column;gap:1.1rem;margin-top:.85rem">
+          <div class="input-group" id="trailTypeGroup">
+            <label>Trail types</label>
+            <div class="chip-row" id="trailTypeChips"></div>
+          </div>
           <div class="input-group">
             <label>Transport modes</label>
             <div class="chip-row">
@@ -1025,6 +1058,18 @@ document.getElementById('activity').addEventListener('change', function() {
   setSliders(this.value);
   updateTrailTypeChips(this.value);
 });
+
+function pickActivity(val) {
+  document.getElementById('activity').value = val;
+  document.querySelectorAll('.activity-chip').forEach(c =>
+    c.classList.toggle('active', c.dataset.val === val)
+  );
+  setSliders(val);
+  updateTrailTypeChips(val);
+  // Sync preset sliders in case activity changes defaults
+  const preset = document.querySelector('input[name="tripPreset"]:checked')?.value || 'quick';
+  setPreset(preset);
+}
 document.getElementById('walkToStop').addEventListener('input',   () => updateSlider('walkToStop',   'walkToStopVal'));
 document.getElementById('walkFromStop').addEventListener('input', () => updateSlider('walkFromStop', 'walkFromStopVal'));
 document.getElementById('ptJourney').addEventListener('input', () => updateSlider('ptJourney', 'ptJourneyVal'));
@@ -2594,9 +2639,11 @@ function applyShareParams(params) {
     destInput.value = params.destination;
   }
   document.getElementById('location').value = params.location || '';
-  document.getElementById('activity').value = params.activity || 'hiking';
-  setSliders(params.activity || 'hiking');
-  updateTrailTypeChips(params.activity || 'hiking');
+  const act = params.activity || 'hiking';
+  document.getElementById('activity').value = act;
+  document.querySelectorAll('.activity-chip').forEach(c => c.classList.toggle('active', c.dataset.val === act));
+  setSliders(act);
+  updateTrailTypeChips(act);
   if (params.walkToStop)   { document.getElementById('walkToStop').value   = params.walkToStop;   updateSlider('walkToStop',   'walkToStopVal'); }
   if (params.walkFromStop) { document.getElementById('walkFromStop').value = params.walkFromStop; updateSlider('walkFromStop', 'walkFromStopVal'); }
   if (params.ptModes) {
