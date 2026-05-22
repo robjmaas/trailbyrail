@@ -2522,7 +2522,7 @@ function _applyTransitResult(i, d, results) {
     const totalMins = d.duration_mins + walkToDep + walkToTrail;
     const h = Math.floor(totalMins / 60), m = totalMins % 60;
     const label = h > 0 ? `${h}h${m > 0 ? ` ${m}min` : ''}` : `${m}min`;
-    el.innerHTML = `<span class="transit-real">🚶→🚌 ${label} total</span>`;
+    el.innerHTML = `<span class="transit-real" title="Door-to-door: includes walking to/from station">🚶→🚌 ${label}</span><span style="font-size:.7rem;color:var(--moss);opacity:.75;margin-left:.3rem">door-to-door</span>`;
     if (trail) trail.journeyMins = totalMins;
     if (d.legs && d.legs.length) applyRealLegs(i, d.legs);
   } else {
