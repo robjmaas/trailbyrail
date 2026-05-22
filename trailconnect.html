@@ -237,51 +237,66 @@ details.api-settings[open] summary{margin-bottom:.85rem}
 }
 /* ── Mobile ── */
 @media(max-width:620px){
-  .container{padding:.75rem}
-  /* Compact header — show wordmark only, no big logo or subtitle */
-  header{padding:1.1rem .75rem .75rem}
+  /* Layout */
+  .container{padding:.6rem}
+  .deco{display:none}
+  /* Header — minimal: wordmark + auth bar only */
+  header{padding:.9rem .6rem .6rem;display:flex;flex-direction:column;align-items:center;gap:.4rem}
   .logo-mark{display:none}
   .hero-slogan{display:none}
-  .wordmark{font-size:2rem;margin-bottom:.3rem}
-  /* Activity chips — tighter on mobile */
-  .activity-chip{padding:.65rem .2rem}
-  .activity-chip-icon{font-size:1.3rem}
-  .activity-chip-label{font-size:.68rem}
-  /* Preset chips — slightly shorter on mobile */
-  .preset-chip{padding:.85rem .3rem}
-  .preset-chip-icon{font-size:1.5rem}
-  .preset-chip-label{font-size:.82rem}
-  .preset-chip-sub{font-size:.64rem}
-  .auth-bar{margin-top:.5rem;gap:.35rem}
-  .auth-bar-btn{padding:.45rem .8rem;font-size:.78rem}
+  .wordmark{font-size:1.75rem;margin-bottom:0}
+  /* Auth bar — icon-only "How it works", compact login/register */
+  .auth-bar{margin-top:0;gap:.3rem;flex-wrap:nowrap}
+  .auth-bar-btn{padding:.45rem .75rem;font-size:.8rem}
+  .auth-bar-btn-guide{font-size:.9rem;padding:.45rem .65rem}
+  .guide-btn-label{display:none}
+  .guide-btn-icon{display:inline!important}
   /* Search card */
-  .search-card{padding:1.1rem .9rem;border-radius:16px;margin-bottom:1rem}
+  .search-card{padding:1rem .85rem;border-radius:16px;margin-bottom:.85rem}
+  .search-form{gap:1.1rem}
+  /* Activity chips */
+  .activity-chip{padding:.6rem .15rem}
+  .activity-chip-icon{font-size:1.25rem}
+  .activity-chip-label{font-size:.68rem}
+  /* Preset chips */
+  .preset-chips{gap:.4rem}
+  .preset-chip{padding:.75rem .25rem}
+  .preset-chip-icon{font-size:1.4rem}
+  .preset-chip-label{font-size:.8rem}
+  .preset-chip-sub{font-size:.62rem}
+  /* Terrain chips — smaller, tighter wrap */
+  .terrain-chip{padding:.3rem .6rem;font-size:.75rem}
+  /* Find Trails button — slightly shorter on mobile */
+  .btn-find{padding:1.1rem;font-size:1rem}
   /* Trail cards */
-  .trail-card{padding:1.1rem .9rem;border-radius:14px}
+  .trail-card{padding:1rem .85rem;border-radius:14px}
   .trail-card:hover{transform:none;box-shadow:0 8px 32px rgba(0,0,0,.3)}
-  .trail-name{font-size:1.1rem}
-  /* Journey chain — smaller nodes, stays scrollable */
-  .journey-chain{padding:.6rem .35rem}
-  .jnode{min-width:50px}
-  .jleg{min-width:36px}
-  .jicon{width:32px;height:32px;font-size:.95rem}
-  .jlabel{font-size:.64rem;max-width:60px}
-  .jsub{font-size:.6rem;max-width:60px}
-  /* Action row — wrap on mobile so all buttons stay visible */
+  .trail-name{font-size:1.05rem}
+  /* Journey chain */
+  .journey-chain{padding:.6rem .3rem}
+  .jnode{min-width:48px}
+  .jleg{min-width:34px}
+  .jicon{width:30px;height:30px;font-size:.88rem}
+  .jlabel{font-size:.63rem;max-width:58px}
+  .jsub{font-size:.59rem;max-width:58px}
+  /* Action row — wrap, primary button full width */
   .action-row{flex-wrap:wrap;gap:.4rem}
-  .act-btn{padding:.6rem .75rem;font-size:.8rem}
-  /* Only show the best stop on mobile — saves a lot of vertical space */
+  .act-btn{padding:.58rem .7rem;font-size:.8rem;min-height:38px}
+  .act-btn.primary{flex:1 0 100%}   /* Plan journey spans full row */
+  /* Only best stop on mobile */
   .stop-item:not(.best){display:none}
   /* Filter bar */
-  .filter-bar{gap:.4rem .65rem}
-  .filter-bar input[type=number]{width:55px}
-  /* Hide decorative background emojis */
-  .deco{display:none}
-  /* Tighter slider ticks */
-  .slider-ticks{font-size:.62rem}
-  /* No results padding */
-  .no-results{padding:2.5rem 1rem}
-  .no-results h3{font-size:1.4rem}
+  .filter-bar{gap:.35rem .55rem;padding:.6rem .75rem}
+  .filter-bar input[type=number]{width:52px}
+  /* Sliders */
+  .slider-ticks{font-size:.6rem}
+  /* No results */
+  .no-results{padding:2rem .75rem}
+  .no-results h3{font-size:1.3rem}
+  /* Event banner */
+  .event-banner{padding:1rem 1.1rem;border-radius:14px}
+  /* Duration row wraps cleanly */
+  .duration-row{gap:.35rem}
 }
 /* ── Weather ── */
 .weather-row{display:flex;gap:.5rem;margin-top:.75rem;flex-wrap:wrap}
@@ -383,7 +398,7 @@ details.api-settings[open] summary{margin-bottom:.85rem}
       <span class="slogan-sub">Find hiking, cycling &amp; outdoor spots reachable by public transport</span>
     </div>
     <div class="auth-bar" id="authBar">
-      <button class="auth-bar-btn auth-bar-btn-guide" onclick="showGuide()" title="How to use TrailbyRail">❓ How it works</button>
+      <button class="auth-bar-btn auth-bar-btn-guide" onclick="showGuide()" title="How to use TrailbyRail"><span class="guide-btn-label">❓ How it works</span><span class="guide-btn-icon" style="display:none">❓</span></button>
       <button class="auth-bar-btn" onclick="showAuthModal('login')">Login</button>
       <button class="auth-bar-btn" onclick="showAuthModal('register')">Register</button>
     </div>
@@ -429,73 +444,91 @@ details.api-settings[open] summary{margin-bottom:.85rem}
 
         <div class="guide-step">
           <div class="guide-step-num">1</div>
-          <div class="guide-step-icon">📍</div>
+          <div class="guide-step-icon">🏠</div>
           <div class="guide-step-body">
-            <h3>Enter your location</h3>
-            <p>Type your address, neighbourhood, or city. Use the <b>📡 button</b> to detect your location automatically. This is the starting point for all searches.</p>
+            <h3>How far do you want to go?</h3>
+            <p>Pick a trip type first: <b>From home</b> finds trails reachable on foot, by bike, bus, tram or metro — no train needed. <b>Half-day trip</b> adds a short intercity train ride (~1–2 h), back same day. <b>Full day / Overnight</b> searches further — pack a bag.</p>
           </div>
         </div>
 
         <div class="guide-step">
           <div class="guide-step-num">2</div>
-          <div class="guide-step-icon">⚡</div>
+          <div class="guide-step-icon">📍</div>
           <div class="guide-step-body">
-            <h3>Pick a trip type</h3>
-            <p><b>From home</b> finds trails reachable on foot, by bike or local transit (bus, tram, metro) — no intercity train needed. <b>Half-day trip</b> searches 1–2 hrs by train, back same day. <b>Full day / Overnight</b> goes further — pack a bag.</p>
+            <h3>Enter your starting location</h3>
+            <p>Type your address, neighbourhood or city. Hit <b>📡</b> to detect your GPS location. This is your door-to-door starting point — walk and transit times are calculated from here.</p>
           </div>
         </div>
 
         <div class="guide-step">
           <div class="guide-step-num">3</div>
-          <div class="guide-step-icon">🗺️</div>
+          <div class="guide-step-icon">🥾</div>
           <div class="guide-step-body">
-            <h3>Destination — optional</h3>
-            <p>If you have a specific area in mind (e.g. <b>Veluwe</b>, <b>Black Forest</b>, <b>Snowdonia</b>), type it in the destination field and the search focuses on trails there. Leave it blank to discover trails anywhere within reach.</p>
+            <h3>Choose activity &amp; trail type</h3>
+            <p>Select <b>Hiking, Cycling, Swimming</b> or <b>Skiing</b>. The chips below refine the trail type — footpaths, cycling routes, MTB, nature areas and more.</p>
+          </div>
+        </div>
+
+        <div class="guide-step">
+          <div class="guide-step-num">4</div>
+          <div class="guide-step-icon">🌲</div>
+          <div class="guide-step-body">
+            <h3>Landscape preference</h3>
+            <p>Select one or more landscape types — <b>Forest, Coast, Hills, Water</b> etc. Results are tagged with the terrain found nearby. Cards that don't match are dimmed. If nothing matches, a notice tells you what terrain <em>is</em> available and offers to clear the filter.</p>
           </div>
         </div>
 
         <div class="guide-step">
           <div class="guide-step-num">5</div>
-          <div class="guide-step-icon">🥾</div>
+          <div class="guide-step-icon">🗺️</div>
           <div class="guide-step-body">
-            <h3>Trail cards &amp; results</h3>
-            <p>Each card shows the trail name, distance, type, and nearest public transport stop. Tap <b>📍 Open in Maps</b> for navigation, or <b>⬇️ GPX</b> to download the route to your device.</p>
+            <h3>Optional destination</h3>
+            <p>Have somewhere in mind? Type an area — <b>Veluwe, Black Forest, Snowdonia</b> — to focus the search there. Leave it blank to discover trails anywhere within reach. For Half-day and Overnight searches, naming a destination usually gives the best results.</p>
           </div>
         </div>
 
         <div class="guide-step">
           <div class="guide-step-num">6</div>
-          <div class="guide-step-icon">🔄</div>
+          <div class="guide-step-icon">🚌</div>
           <div class="guide-step-body">
-            <h3>Loop routes</h3>
-            <p>Click <b>Generate loop</b> on any trail card to get a circular walking or cycling route starting from the trailhead. The route prefers off-road paths and avoids busy roads where possible.</p>
+            <h3>Results &amp; journey times</h3>
+            <p>Each card shows the trail, nearest stop, and a <b>real door-to-door time</b> — including walking to and from the station. Cards re-sort by fastest total journey once transit data loads. Tap <b>🚌 Plan journey</b> to open the route in Google Maps or your transit app.</p>
           </div>
         </div>
 
         <div class="guide-step">
           <div class="guide-step-num">7</div>
-          <div class="guide-step-icon">🔗</div>
+          <div class="guide-step-icon">🔁</div>
           <div class="guide-step-body">
-            <h3>Share a trail</h3>
-            <p>Hit <b>Share</b> on any card to copy a link. When your friend opens it, the search runs automatically and the page scrolls straight to that trail — no hunting through results.</p>
+            <h3>Loop routes</h3>
+            <p>Tap <b>🔁 Loop</b> on any card to generate a circular route starting from the trailhead. Set your preferred distance, pick a style (forest, road-free…) and download the GPX.</p>
           </div>
         </div>
 
         <div class="guide-step">
           <div class="guide-step-num">8</div>
-          <div class="guide-step-icon">💾</div>
+          <div class="guide-step-icon">🔗</div>
           <div class="guide-step-body">
-            <h3>Save searches</h3>
-            <p>Create a free account and use the <b>💾 Save</b> button to bookmark your favourite search settings. Re-run them in one tap from the saved search chips below the form.</p>
+            <h3>Share trails &amp; events</h3>
+            <p><b>🔗 Share</b> on any card copies a deep link — your friend's search runs automatically and scrolls straight to that trail. Organising a group outing? Use <b>📅 Event link</b> (in ··· More) to create a URL for participants: they enter their own location and get personalised transit directions to your trailhead.</p>
           </div>
         </div>
 
         <div class="guide-step">
           <div class="guide-step-num">9</div>
-          <div class="guide-step-icon">✅</div>
+          <div class="guide-step-icon">📍</div>
           <div class="guide-step-body">
-            <h3>Mark trails as done</h3>
-            <p>Logged in? Click <b>Mark done</b> on any card to keep track of where you've been. Completed trails are shown with a green border and can be hidden with the <b>Hide completed</b> filter.</p>
+            <h3>Custom pins</h3>
+            <p>Open <b>📁 My Routes</b> and tap <b>📍 Add pin</b> to save any location with a title, GPS coordinates and description. Pins appear as cards in results for anyone searching nearby — great for marking trailheads, parking spots or meeting points.</p>
+          </div>
+        </div>
+
+        <div class="guide-step">
+          <div class="guide-step-num">10</div>
+          <div class="guide-step-icon">💾</div>
+          <div class="guide-step-body">
+            <h3>Save searches &amp; track done trails</h3>
+            <p>Use <b>💾 Save</b> to bookmark a search — re-run it in one tap. Log in to sync across devices, mark trails as <b>✅ Done</b>, and hide completed ones with the filter.</p>
           </div>
         </div>
 
