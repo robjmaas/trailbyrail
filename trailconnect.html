@@ -2507,14 +2507,17 @@ function _applyTransitResult(i, d, results) {
   if (!el) return;
   if (d.duration_mins && d.duration_mins > 0) {
     const trail = results[i];
-    const walkMpm = 5000 / 60; // 5 km/h in m/min
+    const walkMpm = 5000 / 60; // 5 km/h → m/min
 
-    // Walk from home → departure stop
-    const walkToDep = trail?.departureStop?.distFromHome
-      ? Math.round(trail.departureStop.distFromHome / walkMpm) : 0;
-    // Walk from arrival stop → trailhead
-    const walkToTrail = trail?.stops?.[0]?.distToTrail
-      ? Math.round(trail.stops[0].distToTrail / walkMpm) : 0;
+    // Prefer exact distances from HAFAS (backend measured home→dep stop and arr stop→trail)
+    // Fall back to OSM stop estimates if the API didn't return them
+    const walkToDep = d.walk_to_dep_m > 0
+      ? Math.round(d.walk_to_dep_m / walkMpm)
+      : (trail?.departureStop?.distFromHome ? Math.round(trail.departureStop.distFromHome / walkMpm) : 0);
+
+    const walkToTrail = d.walk_from_arr_m > 0
+      ? Math.round(d.walk_from_arr_m / walkMpm)
+      : (trail?.stops?.[0]?.distToTrail ? Math.round(trail.stops[0].distToTrail / walkMpm) : 0);
 
     const totalMins = d.duration_mins + walkToDep + walkToTrail;
     const h = Math.floor(totalMins / 60), m = totalMins % 60;

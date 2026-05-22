@@ -110,6 +110,14 @@ def init_db():
         db.execute('ALTER TABLE transit_cache ADD COLUMN legs_json TEXT')
     except Exception:
         pass
+    try:
+        db.execute('ALTER TABLE transit_cache ADD COLUMN walk_to_dep_m INTEGER DEFAULT 0')
+    except Exception:
+        pass
+    try:
+        db.execute('ALTER TABLE transit_cache ADD COLUMN walk_from_arr_m INTEGER DEFAULT 0')
+    except Exception:
+        pass
     # Migration: add search_count to users if it doesn't exist yet
     try:
         db.execute('ALTER TABLE users ADD COLUMN search_count INTEGER DEFAULT 0')
@@ -622,12 +630,14 @@ def api_transit_time():
     cache_key = f'{o_lat},{o_lon},{d_lat},{d_lon}'
     db = get_db()
     cached = db.execute(
-        "SELECT duration_mins, legs_json FROM transit_cache WHERE cache_key=? AND cached_at > datetime('now','-7 days')",
+        "SELECT duration_mins, legs_json, walk_to_dep_m, walk_from_arr_m FROM transit_cache WHERE cache_key=? AND cached_at > datetime('now','-7 days')",
         (cache_key,)
     ).fetchone()
     if cached:
         db.close()
-        resp = {'duration_mins': cached['duration_mins'], 'cached': True}
+        resp = {'duration_mins': cached['duration_mins'], 'cached': True,
+                'walk_to_dep_m': cached['walk_to_dep_m'] or 0,
+                'walk_from_arr_m': cached['walk_from_arr_m'] or 0}
         if cached['legs_json']:
             resp['legs'] = json.loads(cached['legs_json'])
         return jsonify(resp)
@@ -737,14 +747,38 @@ def api_transit_time():
                     'mins': mins,
                 })
 
+        # Walk distances: home → first PT stop, last PT stop → trailhead
+        def haversine_m(lat1, lon1, lat2, lon2):
+            import math
+            R = 6371000
+            dl = math.radians(lat2 - lat1)
+            do_ = math.radians(lon2 - lon1)
+            a = (math.sin(dl/2)**2
+                 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(do_/2)**2)
+            return int(R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a)))
+
+        walk_to_dep_m = walk_from_arr_m = 0
+        if legs_raw:
+            dep_loc = (legs_raw[0].get('origin') or {}).get('location') or {}
+            arr_loc = (legs_raw[-1].get('destination') or {}).get('location') or {}
+            dep_lat = dep_loc.get('latitude')
+            dep_lon = dep_loc.get('longitude')
+            arr_lat = arr_loc.get('latitude')
+            arr_lon = arr_loc.get('longitude')
+            if dep_lat and dep_lon:
+                walk_to_dep_m   = haversine_m(o_lat, o_lon, dep_lat, dep_lon)
+            if arr_lat and arr_lon:
+                walk_from_arr_m = haversine_m(d_lat, d_lon, arr_lat, arr_lon)
+
         legs_json = json.dumps(legs_out)
         db = get_db()
         db.execute(
-            'INSERT OR REPLACE INTO transit_cache (cache_key, duration_mins, legs_json) VALUES (?,?,?)',
-            (cache_key, duration_mins, legs_json)
+            'INSERT OR REPLACE INTO transit_cache (cache_key, duration_mins, legs_json, walk_to_dep_m, walk_from_arr_m) VALUES (?,?,?,?,?)',
+            (cache_key, duration_mins, legs_json, walk_to_dep_m, walk_from_arr_m)
         )
         db.commit(); db.close()
-        return jsonify({'duration_mins': duration_mins, 'legs': legs_out})
+        return jsonify({'duration_mins': duration_mins, 'legs': legs_out,
+                        'walk_to_dep_m': walk_to_dep_m, 'walk_from_arr_m': walk_from_arr_m})
 
     except requests.HTTPError as e:
         body = ''
