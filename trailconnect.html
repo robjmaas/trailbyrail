@@ -92,24 +92,15 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
 .badge-nature{background:linear-gradient(135deg,var(--trail-tan),#c49060);color:var(--forest-dark)}
 .badge-swimming{background:linear-gradient(135deg,#0077b6,#00b4d8);color:white}
 .badge-skiing{background:linear-gradient(135deg,#5c8fc7,#a8d8ea);color:var(--forest-dark)}
-/* Journey chain — vertical timeline */
-.journey-chain{margin:1rem 0;padding:.85rem 1rem;background:var(--cloud);border-radius:14px}
-.jrow{display:flex;align-items:flex-start;gap:.7rem;position:relative}
-.jrow-dot{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.75rem;flex-shrink:0;margin-top:.1rem;position:relative;z-index:1}
-.jrow-dot-home{background:var(--forest-dark);color:white}
-.jrow-dot-pt{background:var(--moss);color:white}
-.jrow-dot-trail{background:var(--sunrise);color:white}
-.jrow-body{flex:1;min-width:0;padding-bottom:.15rem}
-.jrow-name{font-size:.82rem;font-weight:700;color:var(--forest-dark);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.jrow-sub{font-size:.73rem;color:var(--moss);margin-top:.05rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.jconn{display:flex;align-items:stretch;gap:.7rem;padding:.18rem 0}
-.jconn-line{width:22px;flex-shrink:0;display:flex;justify-content:center}
-.jconn-line::before{content:'';display:block;width:2px;background:linear-gradient(var(--moss),var(--forest-med));border-radius:1px;flex:1;margin:0 auto}
-.jconn-body{flex:1;min-width:0;display:flex;align-items:center}
-.jconn-pill{display:inline-flex;align-items:center;gap:.25rem;padding:.22rem .6rem;border-radius:20px;font-size:.74rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-.jconn-pt{background:var(--moss);color:white}
-.jconn-walk{background:rgba(58,125,82,.13);color:var(--forest-med)}
-.jconn-loading{opacity:.6;animation:trainPulse 1.4s ease-in-out infinite}
+/* Journey chain — simple vertical list */
+.journey-chain{margin:1rem 0;padding:.8rem 1rem;background:var(--cloud);border-radius:14px;border-left:3px solid var(--moss)}
+.jpoint{display:flex;align-items:center;gap:.5rem;padding:.22rem 0;font-size:.83rem;font-weight:700;color:var(--forest-dark)}
+.jpoint-dot{width:10px;height:10px;border-radius:50%;background:var(--moss);flex-shrink:0}
+.jpoint-dot-home{background:var(--forest-dark)}
+.jpoint-dot-trail{background:var(--sunrise)}
+.jtransit{margin:.12rem 0 .12rem 1.4rem;padding:.2rem .65rem;background:var(--moss);color:white;border-radius:20px;display:inline-block;font-size:.75rem;font-weight:700;line-height:1.4}
+.jwalk{margin:.1rem 0 .1rem 1.4rem;font-size:.75rem;color:var(--forest-med);font-weight:600}
+.jtransit-loading{opacity:.6;animation:trainPulse 1.4s ease-in-out infinite}
 /* Stops */
 .stops-section{margin-top:1.25rem}
 .stops-title{font-size:.78rem;font-weight:700;color:var(--moss);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.65rem}
@@ -238,7 +229,7 @@ details.api-settings[open] summary{margin-bottom:.85rem}
 /* ── Tablet ── */
 @media(max-width:700px){
   .form-row{grid-template-columns:1fr}
-  .journey-chain{padding:.65rem .75rem}
+  .journey-chain{padding:.65rem .75rem;font-size:.8rem}
   .results-meta{flex-wrap:wrap;gap:.5rem}
   .results-meta>div{width:100%;justify-content:flex-start}
 }
@@ -281,8 +272,8 @@ details.api-settings[open] summary{margin-bottom:.85rem}
   .trail-name{font-size:1.05rem}
   /* Journey chain */
   .journey-chain{padding:.5rem .6rem}
-  .jrow-name,.jconn-pill{font-size:.75rem}
-  .jrow-sub,.jrow-dot{font-size:.7rem}
+  .jpoint{font-size:.77rem}
+  .jtransit,.jwalk{font-size:.7rem}
   /* Action row — wrap, primary button full width */
   .action-row{flex-wrap:wrap;gap:.4rem}
   .act-btn{padding:.58rem .7rem;font-size:.8rem;min-height:38px}
@@ -2149,31 +2140,13 @@ function renderCard(trail, idx) {
     </div>
 
     <div class="journey-chain">
-      ${(() => {
-        const dep = trail.departureStop;
-        const h = (dot, name, sub) => `
-          <div class="jrow">
-            <div class="jrow-dot ${dot}"></div>
-            <div class="jrow-body"><div class="jrow-name">${name}</div>${sub ? `<div class="jrow-sub">${sub}</div>` : ''}</div>
-          </div>`;
-        const c = (pill, pillCls) => `
-          <div class="jconn">
-            <div class="jconn-line"></div>
-            <div class="jconn-body"><span class="jconn-pill ${pillCls}">${pill}</span></div>
-          </div>`;
-        let html = h('jrow-dot-home', '🏠 Home', '');
-        if (dep) {
-          html += c(`🚶 ${fmtLegTime(dep.distFromHome, legLabel) || fmt(dep.distFromHome)}`, 'jconn-walk');
-          html += h('jrow-dot-pt', dep.icon + ' ' + dep.name, dep.type);
-        }
-        html += c(`<span id="chain-train-${idx}" class="jconn-loading">🚂 checking route…</span>`, 'jconn-pt');
-        if (best) {
-          html += h('jrow-dot-pt', best.icon + ' ' + best.name, best.type);
-          html += c(`🚶 ${fmtLegTime(best.distToTrail, legLabel) || fmt(best.distToTrail)}`, 'jconn-walk');
-        }
-        html += h('jrow-dot-trail', '🏔️ Trailhead', trail.trailDist ? trail.trailDist + ' km trail' : '');
-        return html;
-      })()}
+      <div class="jpoint"><div class="jpoint-dot jpoint-dot-home"></div>🏠 Home</div>
+      ${dep ? `<div class="jwalk">🚶 ${fmtLegTime(dep.distFromHome, legLabel) || fmt(dep.distFromHome)}</div>
+      <div class="jpoint"><div class="jpoint-dot"></div>${dep.icon} ${dep.name}</div>` : ''}
+      <div class="jtransit jtransit-loading" id="chain-train-${idx}">🚂 checking route…</div>
+      ${best ? `<div class="jpoint"><div class="jpoint-dot"></div>${best.icon} ${best.name}</div>
+      <div class="jwalk">🚶 ${fmtLegTime(best.distToTrail, legLabel) || fmt(best.distToTrail)}</div>` : ''}
+      <div class="jpoint"><div class="jpoint-dot jpoint-dot-trail"></div>🏔️ Trailhead${trail.trailDist ? ' · ' + trail.trailDist + 'km' : ''}</div>
     </div>
 
     <div class="duration-row">
@@ -2914,7 +2887,7 @@ async function fetchTransitTimes(results) {
       results.forEach((_, i) => {
         const el = document.getElementById(`transit-${i}`); if (el) el.innerHTML = '';
         const ct = document.getElementById(`chain-train-${i}`);
-        if (ct) { ct.classList.remove('chain-train-loading'); ct.textContent = '🚂'; }
+        if (ct) { ct.classList.remove('jtransit-loading'); ct.textContent = '🚂'; }
       });
       return;
     }
@@ -2930,7 +2903,7 @@ async function fetchTransitTimes(results) {
     } else {
       const el = document.getElementById(`transit-${i}`); if (el) el.innerHTML = '';
       const ct = document.getElementById(`chain-train-${i}`);
-      if (ct) { ct.classList.remove('chain-train-loading'); ct.textContent = '🚂'; }
+      if (ct) { ct.classList.remove('jtransit-loading'); ct.textContent = '🚂'; }
     }
     if (i < limit - 1) await new Promise(res => setTimeout(res, 300));
   }
@@ -2982,7 +2955,7 @@ function _applyTransitResult(i, d, results) {
       if (chainTrain) {
         const ph = Math.floor(d.duration_mins/60), pm = d.duration_mins%60;
         chainTrain.textContent = `🚂 ${ph > 0 ? ph+'h' : ''}${pm > 0 ? pm+'min' : ''}`;
-        chainTrain.classList.remove('chain-train-loading');
+        chainTrain.classList.remove('jtransit-loading');
       }
     }
   } else {
@@ -2994,29 +2967,27 @@ function applyRealLegs(idx, legs) {
   const chain = document.querySelector(`#card-${idx} .journey-chain`);
   if (!chain) return;
 
-  const node = (dotCls, name, sub) =>
-    `<div class="jrow"><div class="jrow-dot ${dotCls}"></div><div class="jrow-body"><div class="jrow-name">${name}</div>${sub ? `<div class="jrow-sub">${sub}</div>` : ''}</div></div>`;
-  const conn = (pill, cls) =>
-    `<div class="jconn"><div class="jconn-line"></div><div class="jconn-body"><span class="jconn-pill ${cls}">${pill}</span></div></div>`;
+  const pt   = (name, dc) => `<div class="jpoint"><div class="jpoint-dot ${dc||''}"></div>${name}</div>`;
+  const tr   = (text)     => `<div class="jtransit">${text}</div>`;
+  const walk = (text)     => `<div class="jwalk">🚶 ${text}</div>`;
 
-  let html = node('jrow-dot-home', '🏠 Home', '');
+  let html = pt('🏠 Home', 'jpoint-dot-home');
 
   for (const leg of legs) {
     if (leg.type === 'walk') {
-      const d = leg.dist_m >= 100 ? ` · ${fmt(leg.dist_m)}` : '';
-      html += conn(`🚶 ${leg.mins}min${d}`, 'jconn-walk');
+      const d = leg.dist_m >= 100 ? ' · ' + fmt(leg.dist_m) : '';
+      html += walk(leg.mins + 'min' + d);
     } else {
-      // Boarding stop node
-      if (leg.from) html += node('jrow-dot-pt', `${leg.icon} ${leg.from}`, '');
-      // Transit connector
-      const t = leg.mins >= 60 ? `${Math.floor(leg.mins/60)}h${leg.mins%60>0?leg.mins%60+'min':''}` : `${leg.mins}min`;
-      html += conn(`${leg.icon} ${t}${leg.line ? ' · '+leg.line : ''}`, 'jconn-pt');
+      if (leg.from) html += pt(leg.icon + ' ' + leg.from);
+      const t = leg.mins >= 60
+        ? Math.floor(leg.mins/60) + 'h' + (leg.mins%60 > 0 ? leg.mins%60 + 'min' : '')
+        : leg.mins + 'min';
+      html += tr(leg.icon + ' ' + t + (leg.line ? ' · ' + leg.line : ''));
     }
   }
 
   const trail = currentTrails[idx];
-  html += node('jrow-dot-trail', '🏔️ Trailhead', trail.trailDist ? trail.trailDist + ' km trail' : '');
-
+  html += pt('🏔️ Trailhead' + (trail.trailDist ? ' · ' + trail.trailDist + 'km' : ''), 'jpoint-dot-trail');
   chain.innerHTML = html;
 }
 
