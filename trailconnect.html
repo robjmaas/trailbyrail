@@ -2219,7 +2219,7 @@ function renderCard(trail, idx) {
       </div>
       <div class="jleg">
         <div class="jline"></div>
-        <div class="jdist">${fmtLegTime(trainDist, 'train') || ('~' + fmt(trainDist))}</div>
+        <div class="jdist" id="chain-train-${idx}">🚂</div>
       </div>
       <div class="jnode">
         <div class="jicon jicon-stop">${best.icon}</div>
@@ -2241,7 +2241,7 @@ function renderCard(trail, idx) {
       </div>
       <div class="jleg">
         <div class="jline"></div>
-        <div class="jdist">${fmtLegTime(best.distFromHome, legLabel) || fmt(best.distFromHome)}</div>
+        <div class="jdist" id="chain-train-${idx}">${lastPtJourney > 0 ? '🚂' : (fmtLegTime(best.distFromHome, legLabel) || fmt(best.distFromHome))}</div>
       </div>
       <div class="jnode">
         <div class="jicon jicon-stop">${best.icon}</div>
@@ -3134,7 +3134,16 @@ function _applyTransitResult(i, d, results) {
     const label = h > 0 ? `${h}h${m > 0 ? ` ${m}min` : ''}` : `${m}min`;
     el.innerHTML = `<span class="transit-real" title="Door-to-door: includes walking to/from station">🚶→🚌 ${label}</span><span style="font-size:.7rem;color:var(--moss);opacity:.75;margin-left:.3rem">door-to-door</span>`;
     if (trail) trail.journeyMins = totalMins;
-    if (d.legs && d.legs.length) applyRealLegs(i, d.legs);
+    if (d.legs && d.legs.length) {
+      applyRealLegs(i, d.legs);
+    } else {
+      // No leg breakdown — at least update the train slot with real PT duration
+      const chainTrain = document.getElementById(`chain-train-${i}`);
+      if (chainTrain) {
+        const ph = Math.floor(d.duration_mins/60), pm = d.duration_mins%60;
+        chainTrain.textContent = `🚂 ${ph > 0 ? ph+'h' : ''}${pm > 0 ? pm+'min' : ''}`;
+      }
+    }
   } else {
     el.innerHTML = '';
   }
