@@ -2096,6 +2096,7 @@ function renderCard(trail, idx) {
   const isDone = doneTrails.has(trail.name);
 
   const isDestMode = searchMode === 'destination';
+  const dep = trail.departureStop || null;
   const originLat = homeLat || (isDestMode ? destLat : null);
   const originLon = homeLon || (isDestMode ? destLon : null);
 
