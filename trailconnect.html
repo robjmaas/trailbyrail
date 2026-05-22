@@ -235,63 +235,76 @@ details.api-settings[open] summary{margin-bottom:.85rem}
 }
 /* ── Mobile ── */
 @media(max-width:620px){
-  /* Layout */
-  .container{padding:.6rem}
+  /* ── Layout ── */
+  .container{padding:.5rem}
   .deco{display:none}
-  /* Header — minimal: wordmark + auth bar only */
-  header{padding:.9rem .6rem .6rem;display:flex;flex-direction:column;align-items:center;gap:.4rem}
+  /* ── Hero ── */
+  header{padding:.75rem .5rem .5rem;display:flex;flex-direction:column;align-items:center;gap:.35rem}
   .logo-mark{display:none}
   .hero-slogan{display:none}
-  .wordmark{font-size:1.75rem;margin-bottom:0}
-  /* Auth bar — icon-only "How it works", compact login/register */
+  .wordmark{font-size:1.65rem;margin-bottom:0}
+  /* ── Auth bar ── */
   .auth-bar{margin-top:0;gap:.3rem;flex-wrap:nowrap}
   .auth-bar-btn{padding:.45rem .75rem;font-size:.8rem}
   .auth-bar-btn-guide{font-size:.9rem;padding:.45rem .65rem}
   .guide-btn-label{display:none}
   .guide-btn-icon{display:inline!important}
-  /* Search card */
-  .search-card{padding:1rem .85rem;border-radius:16px;margin-bottom:.85rem}
-  .search-form{gap:1.1rem}
-  /* Activity chips */
-  .activity-chip{padding:.6rem .15rem}
-  .activity-chip-icon{font-size:1.25rem}
-  .activity-chip-label{font-size:.68rem}
-  /* Preset chips */
-  .preset-chips{gap:.4rem}
-  .preset-chip{padding:.75rem .25rem}
-  .preset-chip-icon{font-size:1.4rem}
-  .preset-chip-label{font-size:.8rem}
-  .preset-chip-sub{font-size:.62rem}
-  /* Terrain chips — smaller, tighter wrap */
-  .terrain-chip{padding:.3rem .6rem;font-size:.75rem}
-  /* Find Trails button — slightly shorter on mobile */
-  .btn-find{padding:1.1rem;font-size:1rem}
-  /* Trail cards */
-  .trail-card{padding:1rem .85rem;border-radius:14px}
+  /* ── Search card ── */
+  .search-card{padding:1.1rem .9rem;border-radius:18px;margin-bottom:.75rem;border-top-width:2px}
+  .search-form{gap:1rem}
+  #location{font-size:1rem;padding:1rem}
+  /* ── Activity chips ── */
+  .activity-chip{padding:.65rem .15rem}
+  .activity-chip-icon{font-size:1.3rem}
+  .activity-chip-label{font-size:.69rem}
+  /* ── Preset chips ── */
+  .preset-chips{gap:.35rem}
+  .preset-chip{padding:.8rem .25rem}
+  .preset-chip-icon{font-size:1.45rem}
+  .preset-chip-label{font-size:.82rem}
+  .preset-chip-sub{font-size:.63rem}
+  /* ── Terrain chips ── */
+  .terrain-chip{padding:.3rem .55rem;font-size:.74rem}
+  /* ── Find button ── */
+  .btn-find{padding:1.15rem;font-size:1rem;border-radius:12px}
+  /* ── Results ── */
+  .results-grid{gap:1rem}
+  .results-meta{flex-wrap:wrap;gap:.4rem;padding:.65rem .85rem}
+  /* ── Trail card ── */
+  .trail-card{padding:1.1rem .9rem;border-radius:16px;border-left-width:5px}
   .trail-card:hover{transform:none;box-shadow:0 8px 32px rgba(0,0,0,.3)}
-  .trail-name{font-size:1.05rem}
-  /* Journey chain */
-  .journey-chain{padding:.5rem .6rem}
-  .jpoint{font-size:.77rem}
-  .jtransit,.jwalk{font-size:.7rem}
-  /* Action row — wrap, primary button full width */
-  .action-row{flex-wrap:wrap;gap:.4rem}
-  .act-btn{padding:.58rem .7rem;font-size:.8rem;min-height:38px}
-  .act-btn.primary{flex:1 0 100%}   /* Plan journey spans full row */
-  /* Only best stop on mobile */
+  /* ── Card header: stack name + badge ── */
+  .trail-header{flex-direction:column;gap:.5rem;margin-bottom:.9rem}
+  .trail-name{font-size:1.1rem;line-height:1.25}
+  .trail-sub{font-size:.8rem;margin-top:.15rem}
+  .trail-header>div:last-child{flex-direction:row;align-items:center;gap:.5rem;align-self:flex-start}
+  /* ── Journey chain ── */
+  .journey-chain{padding:.65rem .8rem;margin:.65rem 0}
+  .jpoint{font-size:.8rem;padding:.18rem 0}
+  .jtransit{font-size:.74rem;padding:.18rem .55rem}
+  .jwalk{font-size:.74rem}
+  /* ── Duration row ── */
+  .duration-row{padding:.5rem .75rem;font-size:.8rem;gap:.3rem;margin:.5rem 0}
+  /* ── Stops section ── */
+  .stops-section{margin-top:.9rem}
   .stop-item:not(.best){display:none}
-  /* Filter bar */
-  .filter-bar{gap:.35rem .55rem;padding:.6rem .75rem}
-  .filter-bar input[type=number]{width:52px}
-  /* Sliders */
+  .stop-name{font-size:.88rem}
+  /* ── Action row — 44px tap targets ── */
+  .action-row{flex-wrap:wrap;gap:.4rem;margin-top:.85rem}
+  .act-btn{padding:.65rem .8rem;font-size:.8rem;min-height:44px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center}
+  .act-btn.primary{flex:1 0 100%;font-size:.88rem;min-height:48px}
+  /* ── Filter bar ── */
+  .filter-bar{gap:.35rem .5rem;padding:.6rem .7rem}
+  .filter-bar input[type=number]{width:50px}
+  /* ── Sliders ── */
   .slider-ticks{font-size:.6rem}
-  /* No results */
+  /* ── No results ── */
   .no-results{padding:2rem .75rem}
   .no-results h3{font-size:1.3rem}
-  /* Event banner */
+  /* ── Event banner ── */
   .event-banner{padding:1rem 1.1rem;border-radius:14px}
-  /* Duration row wraps cleanly */
-  .duration-row{gap:.35rem}
+  /* ── More actions: scroll row ── */
+  .more-actions.open{overflow-x:auto;flex-wrap:nowrap;padding-bottom:.5rem;gap:.4rem}
 }
 /* ── Weather ── */
 .weather-row{display:flex;gap:.5rem;margin-top:.75rem;flex-wrap:wrap}
