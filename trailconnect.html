@@ -2488,16 +2488,39 @@ async function fetchTransitTimes(results) {
   for (let i = limit; i < results.length; i++) {
     const el = document.getElementById(`transit-${i}`); if (el) el.innerHTML = '';
   }
+  // Re-sort cards by real total journey time now that we have accurate data
+  resortByJourneyTime();
+}
+
+function resortByJourneyTime() {
+  const grid = document.getElementById('resultsGrid');
+  if (!grid) return;
+  const cards = currentTrails
+    .map((t, i) => ({ el: document.getElementById(`card-${i}`), mins: t.journeyMins ?? Infinity }))
+    .filter(c => c.el);
+  cards.sort((a, b) => a.mins - b.mins);
+  cards.forEach(c => grid.appendChild(c.el));
 }
 
 function _applyTransitResult(i, d, results) {
   const el = document.getElementById(`transit-${i}`);
   if (!el) return;
   if (d.duration_mins && d.duration_mins > 0) {
-    const h = Math.floor(d.duration_mins / 60), m = d.duration_mins % 60;
+    const trail = results[i];
+    const walkMpm = 5000 / 60; // 5 km/h in m/min
+
+    // Walk from home → departure stop
+    const walkToDep = trail?.departureStop?.distFromHome
+      ? Math.round(trail.departureStop.distFromHome / walkMpm) : 0;
+    // Walk from arrival stop → trailhead
+    const walkToTrail = trail?.stops?.[0]?.distToTrail
+      ? Math.round(trail.stops[0].distToTrail / walkMpm) : 0;
+
+    const totalMins = d.duration_mins + walkToDep + walkToTrail;
+    const h = Math.floor(totalMins / 60), m = totalMins % 60;
     const label = h > 0 ? `${h}h${m > 0 ? ` ${m}min` : ''}` : `${m}min`;
-    el.innerHTML = `<span class="transit-real">🚌 ${label} by transit</span>`;
-    if (results[i]) results[i].journeyMins = d.duration_mins;
+    el.innerHTML = `<span class="transit-real">🚶→🚌 ${label} total</span>`;
+    if (trail) trail.journeyMins = totalMins;
     if (d.legs && d.legs.length) applyRealLegs(i, d.legs);
   } else {
     el.innerHTML = '';
