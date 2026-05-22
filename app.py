@@ -624,12 +624,11 @@ def api_graphhopper():
 def api_transit_time():
     """
     Returns the fastest PT journey from origin → destination.
-    Uses transport.rest (DB HAFAS) — no API key, no registration required.
-    European inter-city coverage (NL, BE, DE, AT, CH, FR, DK, SE, NO…).
-    Results are cached 7 days in transit_cache.
+    Uses Transitous (community OpenTripPlanner, pan-European GTFS) — no API key needed.
+    https://transitous.org  |  https://api.transitous.org
+    Results cached 7 days in transit_cache.
     """
     from datetime import datetime, timedelta, timezone
-    from concurrent.futures import ThreadPoolExecutor
 
     data = request.json or {}
     try:
@@ -665,114 +664,70 @@ def api_transit_time():
             days += 1
         dep = (now + timedelta(days=days)).replace(hour=9, minute=0, second=0, microsecond=0)
 
-    DB_BASE = 'https://v6.db.transport.rest'
-    HEADERS_DB = {'Accept': 'application/json', 'User-Agent': 'TrailbyRail/1.0'}
-
-    def geo_dist(lat1, lon1, lat2, lon2):
-        """Haversine distance in metres."""
-        R = 6_371_000
-        dl = math.radians(lat2 - lat1)
-        do = math.radians(lon2 - lon1)
-        a  = math.sin(dl/2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(do/2)**2
-        return int(R * 2 * math.atan2(math.sqrt(max(0.0, a)), math.sqrt(max(0.0, 1.0 - a))))
-
-    def find_stop(lat, lon):
-        """Return (stop_id, stop_lat, stop_lon) for nearest HAFAS stop within 10 km."""
-        try:
-            r = requests.get(
-                f'{DB_BASE}/stops/nearby',
-                headers=HEADERS_DB,
-                params={'latitude': lat, 'longitude': lon, 'results': 1, 'distance': 10000},
-                timeout=8,
-            )
-            stops = r.json() if r.ok else []
-            if stops:
-                s   = stops[0]
-                loc = s.get('location') or {}
-                return s['id'], loc.get('latitude'), loc.get('longitude')
-        except Exception:
-            pass
-        return None, None, None
+    # OTP mode string → display icon
+    MODE_ICON = {
+        'RAIL': '\U0001f682', 'SUBWAY': '\U0001f687', 'TRAM': '\U0001f68a',
+        'BUS': '\U0001f68c', 'FERRY': '⛴️', 'CABLE_CAR': '\U0001f6a1',
+        'GONDOLA': '\U0001f6a1', 'FUNICULAR': '\U0001f69e', 'COACH': '\U0001f68c',
+    }
 
     try:
-        # Resolve origin + destination stops in parallel
-        with ThreadPoolExecutor(max_workers=2) as ex:
-            f_from = ex.submit(find_stop, o_lat, o_lon)
-            f_to   = ex.submit(find_stop, d_lat, d_lon)
-            from_id, from_lat, from_lon = f_from.result()
-            to_id,   to_lat,   to_lon   = f_to.result()
-
-        if not from_id or not to_id:
-            return jsonify({'error': 'No stops found near origin or destination'}), 404
-
-        # Walk distances: home → departure stop, arrival stop → trailhead
-        walk_to_dep_m   = geo_dist(o_lat, o_lon, from_lat, from_lon) if from_lat else 0
-        walk_from_arr_m = geo_dist(d_lat, d_lon, to_lat,   to_lon)   if to_lat   else 0
-
         r = requests.get(
-            f'{DB_BASE}/journeys',
-            headers=HEADERS_DB,
+            'https://api.transitous.org/otp/routers/default/plan',
+            headers=HEADERS,
             params={
-                'from':       from_id,
-                'to':         to_id,
-                'departure':  dep.strftime('%Y-%m-%dT%H:%M:%S+00:00'),
-                'results':    1,
-                'stopovers':  'false',
-                'remarks':    'false',
+                'fromPlace':       f'{o_lat},{o_lon}',
+                'toPlace':         f'{d_lat},{d_lon}',
+                'date':            dep.strftime('%Y-%m-%d'),
+                'time':            '09:00:00',
+                'mode':            'TRANSIT,WALK',
+                'numItineraries':  1,
+                'maxWalkDistance': 2000,
             },
-            timeout=12,
+            timeout=25,
         )
         r.raise_for_status()
-        payload  = r.json()
-        journeys = payload.get('journeys', [])
-        if not journeys:
-            return jsonify({'error': 'No journey found'}), 404
+        payload = r.json()
 
-        journey = journeys[0]
-        legs_raw = journey.get('legs', [])
+        itineraries = (payload.get('plan') or {}).get('itineraries', [])
+        if not itineraries:
+            err = payload.get('error') or {}
+            return jsonify({'error': err.get('msg') or 'No journey found'}), 404
 
-        # Duration: sum legs departure→arrival
-        def parse_iso(s):
-            if not s: return None
-            return datetime.fromisoformat(s.replace('Z', '+00:00'))
+        itin     = itineraries[0]
+        legs_raw = itin.get('legs', [])
+        if not legs_raw:
+            return jsonify({'error': 'No legs in itinerary'}), 404
 
-        if legs_raw:
-            t0 = parse_iso(legs_raw[0].get('departure') or legs_raw[0].get('plannedDeparture'))
-            t1 = parse_iso(legs_raw[-1].get('arrival')  or legs_raw[-1].get('plannedArrival'))
-            duration_mins = round((t1 - t0).total_seconds() / 60) if t0 and t1 else 0
-        else:
-            duration_mins = 0
-
+        # OTP gives ms timestamps
+        t0 = legs_raw[0].get('startTime', 0)
+        t1 = legs_raw[-1].get('endTime', 0)
+        duration_mins = round((t1 - t0) / 60000) if t0 and t1 else round(itin.get('duration', 0) / 60)
         if duration_mins <= 0:
             return jsonify({'error': 'Could not determine journey duration'}), 404
 
-        PRODUCT_ICON = {
-            'nationalExpress': '🚂', 'national': '🚂',
-            'regionalExp': '🚂', 'regional': '🚂',
-            'suburban': '🚋', 'bus': '🚌',
-            'ferry': '⛴️', 'subway': '🚇', 'tram': '🚊', 'taxi': '🚖',
-        }
+        # Walk distances from first/last legs (OTP gives metres in .distance)
+        walk_to_dep_m   = round(legs_raw[0].get('distance',  0)) if legs_raw[0].get('mode') == 'WALK' else 0
+        walk_from_arr_m = round(legs_raw[-1].get('distance', 0)) if legs_raw[-1].get('mode') == 'WALK' else 0
 
         legs_out = []
         for leg in legs_raw:
-            dep_t = parse_iso(leg.get('departure') or leg.get('plannedDeparture'))
-            arr_t = parse_iso(leg.get('arrival')   or leg.get('plannedArrival'))
-            mins  = round((arr_t - dep_t).total_seconds() / 60) if dep_t and arr_t else 0
-            if leg.get('walking') or leg.get('transfer'):
+            mode     = leg.get('mode', 'WALK')
+            leg_ms   = leg.get('endTime', 0) - leg.get('startTime', 0)
+            mins     = round(leg_ms / 60000) if leg_ms else 0
+            if mode == 'WALK':
+                dist_m = round(leg.get('distance', 0))
                 if mins > 0:
-                    legs_out.append({'type': 'walk', 'mins': mins,
-                                     'dist_m': round(leg.get('distance') or 0)})
+                    legs_out.append({'type': 'walk', 'mins': mins, 'dist_m': dist_m})
             else:
-                line    = leg.get('line') or {}
-                product = line.get('product', 'national')
-                icon    = PRODUCT_ICON.get(product, '🚂')
+                icon = MODE_ICON.get(mode, '\U0001f682')
                 legs_out.append({
                     'type': 'pt',
                     'icon': icon,
-                    'line': line.get('name') or line.get('id') or '',
-                    'desc': leg.get('direction') or '',
-                    'from': (leg.get('origin')      or {}).get('name', ''),
-                    'to':   (leg.get('destination') or {}).get('name', ''),
+                    'line': leg.get('routeShortName') or leg.get('routeLongName') or '',
+                    'desc': leg.get('headsign') or '',
+                    'from': (leg.get('from') or {}).get('name', ''),
+                    'to':   (leg.get('to')   or {}).get('name', ''),
                     'mins': mins,
                 })
 
@@ -790,7 +745,7 @@ def api_transit_time():
         body = ''
         try: body = e.response.text[:200]
         except: pass
-        return jsonify({'error': f'DB API {e.response.status_code}', 'detail': body}), 502
+        return jsonify({'error': f'Transitous API {e.response.status_code}', 'detail': body}), 502
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

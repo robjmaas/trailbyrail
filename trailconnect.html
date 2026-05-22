@@ -2935,14 +2935,10 @@ document.addEventListener('DOMContentLoaded', () => {
   initEventMode();
 });
 
-// ── Real transit times via transport.rest (DB HAFAS, no API key) ─────────────
-// Since 2026-05-18 the DB backend blocks datacenter IPs (Railway gets 403).
-// Strategy: check backend first for cached results (no external call needed),
-// then fall back to calling HAFAS directly from the browser (residential IP, not blocked).
-// Results are also cached in localStorage for 7 days.
+// ── Real transit times via Transitous / OTP (server-side, no API key needed) ──
+// Results also cached in localStorage (7 days) to avoid redundant API calls.
 
-const HAFAS_BASE = 'https://v6.db.transport.rest';
-const TRANSIT_LS_KEY = 'hafasCache_v1';
+const TRANSIT_LS_KEY = 'navitiaCache_v1';
 const TRANSIT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 function _lsTransitGet(key) {
@@ -2964,32 +2960,6 @@ function _lsTransitSet(key, data) {
   } catch {}
 }
 
-function _haversineM(lat1, lon1, lat2, lon2) {
-  const R = 6371000, dl = (lat2-lat1)*Math.PI/180, dlo = (lon2-lon1)*Math.PI/180;
-  const a = Math.sin(dl/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dlo/2)**2;
-  return Math.round(R * 2 * Math.atan2(Math.sqrt(Math.max(0,a)), Math.sqrt(Math.max(0,1-a))));
-}
-
-function _nextWeekday9am() {
-  const now = new Date();
-  let d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 9, 0, 0));
-  if (d <= now) d.setUTCDate(d.getUTCDate() + 1);
-  while (d.getUTCDay() === 0 || d.getUTCDay() === 6) d.setUTCDate(d.getUTCDate() + 1);
-  return d.toISOString();
-}
-
-async function _hafasNearby(lat, lon, signal) {
-  const r = await fetch(
-    `${HAFAS_BASE}/stops/nearby?latitude=${lat}&longitude=${lon}&results=1&distance=10000`,
-    {signal}
-  );
-  if (!r.ok) return null;
-  const stops = await r.json();
-  if (!stops?.length) return null;
-  const s = stops[0], loc = s.location || {};
-  return {id: s.id, lat: loc.latitude, lon: loc.longitude};
-}
-
 async function fetchOneTransitTime(destLat, destLon) {
   const oLat = Math.round(homeLat * 10000) / 10000;
   const oLon = Math.round(homeLon * 10000) / 10000;
@@ -3001,10 +2971,10 @@ async function fetchOneTransitTime(destLat, destLon) {
   const cached = _lsTransitGet(cKey);
   if (cached) return cached;
 
-  // 2. Try backend (only useful for its SQLite cache — no external calls on cache hit)
+  // 2. Call backend (Navitia, server-side — no CORS issues)
   try {
     const ctrl = new AbortController();
-    const tid = setTimeout(() => ctrl.abort(), 6000);
+    const tid = setTimeout(() => ctrl.abort(), 30000);
     const r = await fetch('/api/transit-time', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({origin_lat: oLat, origin_lon: oLon, dest_lat: dLat, dest_lon: dLon}),
@@ -3015,56 +2985,9 @@ async function fetchOneTransitTime(destLat, destLon) {
       const d = await r.json();
       if (d?.duration_mins > 0) { _lsTransitSet(cKey, d); return d; }
     }
-  } catch { /* backend down or not cached — fall through */ }
+  } catch { /* network error or timeout */ }
 
-  // 3. Browser-direct HAFAS (residential IP, not blocked by DB's datacenter filter)
-  const ctrl = new AbortController();
-  const tid = setTimeout(() => ctrl.abort(), 20000);
-  try {
-    const [fromStop, toStop] = await Promise.all([
-      _hafasNearby(oLat, oLon, ctrl.signal),
-      _hafasNearby(dLat, dLon, ctrl.signal),
-    ]);
-    if (!fromStop || !toStop) { clearTimeout(tid); return null; }
-
-    const walkToDepM   = _haversineM(oLat, oLon, fromStop.lat, fromStop.lon);
-    const walkFromArrM = _haversineM(dLat, dLon, toStop.lat,   toStop.lon);
-    const dep = _nextWeekday9am();
-
-    // transfers=1 → prefer direct or single-change routes; HAFAS falls back automatically if none exist
-    const jUrl = `${HAFAS_BASE}/journeys?from=${encodeURIComponent(fromStop.id)}&to=${encodeURIComponent(toStop.id)}&departure=${encodeURIComponent(dep)}&results=1&stopovers=false&remarks=false&transfers=1`;
-    const jr = await fetch(jUrl, {signal: ctrl.signal});
-    clearTimeout(tid);
-    if (!jr.ok) return null;
-
-    const payload  = await jr.json();
-    const legsRaw  = (payload.journeys?.[0]?.legs) || [];
-    if (!legsRaw.length) return null;
-
-    const t0 = new Date(legsRaw[0].departure        || legsRaw[0].plannedDeparture);
-    const t1 = new Date(legsRaw.at(-1).arrival      || legsRaw.at(-1).plannedArrival);
-    const duration_mins = Math.round((t1 - t0) / 60000);
-    if (duration_mins <= 0) return null;
-
-    const PICON = {nationalExpress:'🚂',national:'🚂',regionalExp:'🚂',regional:'🚂',
-                   suburban:'🚋',bus:'🚌',ferry:'⛴️',subway:'🚇',tram:'🚊',taxi:'🚖'};
-    const legs = legsRaw.map(leg => {
-      const ld = new Date(leg.departure || leg.plannedDeparture);
-      const la = new Date(leg.arrival   || leg.plannedArrival);
-      const mins = Math.round((la - ld) / 60000);
-      if (leg.walking || leg.transfer) return mins > 0 ? {type:'walk', mins, dist_m: Math.round(leg.distance||0)} : null;
-      const line = leg.line || {};
-      return {type:'pt', icon: PICON[line.product]||'🚂', line: line.name||line.id||'',
-              desc: leg.direction||'', from:(leg.origin||{}).name||'', to:(leg.destination||{}).name||'', mins};
-    }).filter(Boolean);
-
-    const result = {duration_mins, legs, walk_to_dep_m: walkToDepM, walk_from_arr_m: walkFromArrM};
-    _lsTransitSet(cKey, result);
-    return result;
-  } catch {
-    clearTimeout(tid);
-    return null;
-  }
+  return null;
 }
 
 async function fetchTransitTimes(results) {
@@ -3073,12 +2996,16 @@ async function fetchTransitTimes(results) {
     results.forEach((_, i) => { const el = document.getElementById(`transit-${i}`); if (el) el.innerHTML = ''; });
     return;
   }
-  // Quick probe: check first result — if it returns null (503 / timeout) clear all and bail
+  // Quick probe: check first result — if it returns null (API down / no token) clear all and bail
   const probe = results[0];
   if (probe) {
     const d = await fetchOneTransitTime(probe.lat, probe.lon);
     if (!d) {
-      results.forEach((_, i) => { const el = document.getElementById(`transit-${i}`); if (el) el.innerHTML = ''; });
+      results.forEach((_, i) => {
+        const el = document.getElementById(`transit-${i}`); if (el) el.innerHTML = '';
+        const ct = document.getElementById(`chain-train-${i}`);
+        if (ct) { ct.classList.remove('chain-train-loading'); ct.textContent = '🚂'; }
+      });
       return;
     }
     _applyTransitResult(0, d, results);
@@ -3092,6 +3019,8 @@ async function fetchTransitTimes(results) {
       _applyTransitResult(i, d, results);
     } else {
       const el = document.getElementById(`transit-${i}`); if (el) el.innerHTML = '';
+      const ct = document.getElementById(`chain-train-${i}`);
+      if (ct) { ct.classList.remove('chain-train-loading'); ct.textContent = '🚂'; }
     }
     if (i < limit - 1) await new Promise(res => setTimeout(res, 300));
   }
