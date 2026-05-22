@@ -655,8 +655,16 @@ def api_transit_time():
     DB_BASE = 'https://v6.db.transport.rest'
     HEADERS_DB = {'Accept': 'application/json', 'User-Agent': 'TrailbyRail/1.0'}
 
+    def geo_dist(lat1, lon1, lat2, lon2):
+        """Haversine distance in metres."""
+        R = 6_371_000
+        dl = math.radians(lat2 - lat1)
+        do = math.radians(lon2 - lon1)
+        a  = math.sin(dl/2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(do/2)**2
+        return int(R * 2 * math.atan2(math.sqrt(max(0.0, a)), math.sqrt(max(0.0, 1.0 - a))))
+
     def find_stop(lat, lon):
-        """Return nearest DB HAFAS stop ID within 10km, or None."""
+        """Return (stop_id, stop_lat, stop_lon) for nearest HAFAS stop within 10 km."""
         try:
             r = requests.get(
                 f'{DB_BASE}/stops/nearby',
@@ -665,20 +673,28 @@ def api_transit_time():
                 timeout=8,
             )
             stops = r.json() if r.ok else []
-            return stops[0]['id'] if stops else None
+            if stops:
+                s   = stops[0]
+                loc = s.get('location') or {}
+                return s['id'], loc.get('latitude'), loc.get('longitude')
         except Exception:
-            return None
+            pass
+        return None, None, None
 
     try:
         # Resolve origin + destination stops in parallel
         with ThreadPoolExecutor(max_workers=2) as ex:
             f_from = ex.submit(find_stop, o_lat, o_lon)
             f_to   = ex.submit(find_stop, d_lat, d_lon)
-            from_id = f_from.result()
-            to_id   = f_to.result()
+            from_id, from_lat, from_lon = f_from.result()
+            to_id,   to_lat,   to_lon   = f_to.result()
 
         if not from_id or not to_id:
             return jsonify({'error': 'No stops found near origin or destination'}), 404
+
+        # Walk distances: home → departure stop, arrival stop → trailhead
+        walk_to_dep_m   = geo_dist(o_lat, o_lon, from_lat, from_lon) if from_lat else 0
+        walk_from_arr_m = geo_dist(d_lat, d_lon, to_lat,   to_lon)   if to_lat   else 0
 
         r = requests.get(
             f'{DB_BASE}/journeys',
@@ -746,29 +762,6 @@ def api_transit_time():
                     'to':   (leg.get('destination') or {}).get('name', ''),
                     'mins': mins,
                 })
-
-        # Walk distances: home → first PT stop, last PT stop → trailhead
-        def haversine_m(lat1, lon1, lat2, lon2):
-            import math
-            R = 6371000
-            dl = math.radians(lat2 - lat1)
-            do_ = math.radians(lon2 - lon1)
-            a = (math.sin(dl/2)**2
-                 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(do_/2)**2)
-            return int(R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a)))
-
-        walk_to_dep_m = walk_from_arr_m = 0
-        if legs_raw:
-            dep_loc = (legs_raw[0].get('origin') or {}).get('location') or {}
-            arr_loc = (legs_raw[-1].get('destination') or {}).get('location') or {}
-            dep_lat = dep_loc.get('latitude')
-            dep_lon = dep_loc.get('longitude')
-            arr_lat = arr_loc.get('latitude')
-            arr_lon = arr_loc.get('longitude')
-            if dep_lat and dep_lon:
-                walk_to_dep_m   = haversine_m(o_lat, o_lon, dep_lat, dep_lon)
-            if arr_lat and arr_lon:
-                walk_from_arr_m = haversine_m(d_lat, d_lon, arr_lat, arr_lon)
 
         legs_json = json.dumps(legs_out)
         db = get_db()
