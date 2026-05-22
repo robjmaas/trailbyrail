@@ -92,19 +92,15 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
 .badge-nature{background:linear-gradient(135deg,var(--trail-tan),#c49060);color:var(--forest-dark)}
 .badge-swimming{background:linear-gradient(135deg,#0077b6,#00b4d8);color:white}
 .badge-skiing{background:linear-gradient(135deg,#5c8fc7,#a8d8ea);color:var(--forest-dark)}
-/* Journey chain */
-.journey-chain{display:flex;align-items:center;margin:1.25rem 0;padding:1.25rem 1rem;background:var(--cloud);border-radius:14px;overflow-x:auto;gap:0}
-.jnode{display:flex;flex-direction:column;align-items:center;gap:.3rem;flex-shrink:0;min-width:70px}
-.jicon{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.2rem}
-.jicon-home{background:var(--forest-dark);color:white}
-.jicon-stop{background:var(--moss);color:white}
-.jicon-trail{background:var(--sunrise);color:white}
-.jlabel{font-size:.72rem;font-weight:700;color:var(--forest-dark);text-align:center;max-width:80px;line-height:1.2}
-.jsub{font-size:.68rem;color:var(--moss);text-align:center;max-width:80px;line-height:1.2}
-.jleg{flex:1;display:flex;flex-direction:column;align-items:center;gap:.2rem;min-width:55px;padding:0 .25rem}
-.jline{height:3px;width:100%;background:linear-gradient(to right,var(--moss),var(--forest-med));border-radius:2px;position:relative}
-.jline::after{content:'▶';position:absolute;right:-5px;top:50%;transform:translateY(-50%);color:var(--forest-med);font-size:.65rem}
-.jdist{font-size:.72rem;font-weight:700;color:var(--forest-med);white-space:nowrap}
+/* Journey chain — compact wrapping chip strip */
+.journey-chain{display:flex;flex-wrap:wrap;align-items:center;gap:.3rem .25rem;margin:1rem 0;padding:.75rem 1rem;background:var(--cloud);border-radius:14px}
+.jchip{display:inline-flex;align-items:center;gap:.25rem;padding:.3rem .65rem;border-radius:20px;font-size:.78rem;font-weight:700;white-space:nowrap;line-height:1.3}
+.jchip-home{background:var(--forest-dark);color:white}
+.jchip-trail{background:var(--sunrise);color:white}
+.jchip-pt{background:var(--moss);color:white}
+.jchip-walk{background:rgba(58,125,82,.12);color:var(--forest-med);font-weight:600;font-size:.75rem}
+.jchip-sep{color:var(--moss);font-size:.75rem;opacity:.6;padding:0 .05rem}
+.jchip-line{font-size:.68rem;opacity:.8;font-weight:400}
 /* Stops */
 .stops-section{margin-top:1.25rem}
 .stops-title{font-size:.78rem;font-weight:700;color:var(--moss);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.65rem}
@@ -233,7 +229,7 @@ details.api-settings[open] summary{margin-bottom:.85rem}
 /* ── Tablet ── */
 @media(max-width:700px){
   .form-row{grid-template-columns:1fr}
-  .journey-chain{padding:.9rem .5rem}
+  .journey-chain{padding:.65rem .6rem}
   .results-meta{flex-wrap:wrap;gap:.5rem}
   .results-meta>div{width:100%;justify-content:flex-start}
 }
@@ -275,12 +271,8 @@ details.api-settings[open] summary{margin-bottom:.85rem}
   .trail-card:hover{transform:none;box-shadow:0 8px 32px rgba(0,0,0,.3)}
   .trail-name{font-size:1.05rem}
   /* Journey chain */
-  .journey-chain{padding:.6rem .3rem}
-  .jnode{min-width:48px}
-  .jleg{min-width:34px}
-  .jicon{width:30px;height:30px;font-size:.88rem}
-  .jlabel{font-size:.63rem;max-width:58px}
-  .jsub{font-size:.59rem;max-width:58px}
+  .journey-chain{padding:.5rem .5rem;gap:.25rem .2rem}
+  .jchip{padding:.25rem .5rem;font-size:.72rem}
   /* Action row — wrap, primary button full width */
   .action-row{flex-wrap:wrap;gap:.4rem}
   .act-btn{padding:.58rem .7rem;font-size:.8rem;min-height:38px}
@@ -2147,123 +2139,29 @@ function renderCard(trail, idx) {
     </div>
 
     <div class="journey-chain">
-      ${isDestMode ? (() => {
+      ${(() => {
         const dep = trail.departureStop;
-        return dep ? `
-      <div class="jnode">
-        <div class="jicon jicon-home">🏠</div>
-        <div class="jlabel">Home</div>
-      </div>
-      <div class="jleg">
-        <div class="jline"></div>
-        <div class="jdist">${fmtLegTime(dep.distFromHome, legLabel) || fmt(dep.distFromHome)}</div>
-      </div>
-      <div class="jnode">
-        <div class="jicon jicon-stop">${dep.icon}</div>
-        <div class="jlabel">${dep.name}</div>
-        <div class="jsub">${dep.type}</div>
-      </div>
-      <div class="jleg">
-        <div class="jline"></div>
-        <div class="jdist">🚂 by train</div>
-      </div>
-      <div class="jnode">
-        <div class="jicon jicon-stop">${best.icon}</div>
-        <div class="jlabel">${best.name}</div>
-        <div class="jsub">${best.type}</div>
-      </div>
-      <div class="jleg">
-        <div class="jline"></div>
-        <div class="jdist">${fmtLegTime(best.distToTrail, legLabel) || fmt(best.distToTrail)}</div>
-      </div>
-      <div class="jnode">
-        <div class="jicon jicon-trail">🏔️</div>
-        <div class="jlabel">Trailhead</div>
-        ${trail.trailDist ? `<div class="jsub">${trail.trailDist}km</div>` : ''}
-      </div>` : `
-      <div class="jnode">
-        <div class="jicon jicon-home">🏠</div>
-        <div class="jlabel">Home</div>
-      </div>
-      <div class="jleg">
-        <div class="jline"></div>
-        <div class="jdist">🚂 by train</div>
-      </div>
-      <div class="jnode">
-        <div class="jicon jicon-stop">${best.icon}</div>
-        <div class="jlabel">${best.name}</div>
-        <div class="jsub">${best.type}</div>
-      </div>
-      <div class="jleg">
-        <div class="jline"></div>
-        <div class="jdist">${fmtLegTime(best.distToTrail, legLabel) || fmt(best.distToTrail)}</div>
-      </div>
-      <div class="jnode">
-        <div class="jicon jicon-trail">🏔️</div>
-        <div class="jlabel">Trailhead</div>
-        ${trail.trailDist ? `<div class="jsub">${trail.trailDist}km</div>` : ''}
-      </div>`;
-      })() : (() => {
-        const dep = lastPtJourney > 0 ? trail.departureStop : null;
-        const trainDist = dep && best ? Math.round(dist(dep.lat, dep.lon, best.lat, best.lon)) : lastPtJourney;
-        const depIsNotTrain = dep && dep.icon !== '🚂';
-        const arrIsBus = best && best.viaBus;
-        return dep ? `
-      <div class="jnode">
-        <div class="jicon jicon-home">🏠</div>
-        <div class="jlabel">Home</div>
-      </div>
-      <div class="jleg">
-        <div class="jline"></div>
-        <div class="jdist">${fmtLegTime(dep.distFromHome, legLabel) || fmt(dep.distFromHome)}</div>
-      </div>
-      <div class="jnode">
-        <div class="jicon jicon-stop">${dep.icon}</div>
-        <div class="jlabel">${dep.name}</div>
-        <div class="jsub">${dep.type}${depIsNotTrain ? ' · connect to train' : ''}</div>
-      </div>
-      <div class="jleg">
-        <div class="jline"></div>
-        <div class="jdist chain-train-loading" id="chain-train-${idx}">🚂</div>
-      </div>
-      <div class="jnode">
-        <div class="jicon jicon-stop">${best.icon}</div>
-        <div class="jlabel">${best.name}</div>
-        <div class="jsub">${arrIsBus ? '🚌 via bus' : best.type}</div>
-      </div>
-      <div class="jleg">
-        <div class="jline"></div>
-        <div class="jdist">${fmtLegTime(best.distToTrail, legLabel) || fmt(best.distToTrail)}</div>
-      </div>
-      <div class="jnode">
-        <div class="jicon jicon-trail">🏔️</div>
-        <div class="jlabel">Trailhead</div>
-        ${trail.trailDist ? `<div class="jsub">${trail.trailDist}km</div>` : ''}
-      </div>` : `
-      <div class="jnode">
-        <div class="jicon jicon-home">🏠</div>
-        <div class="jlabel">Home</div>
-      </div>
-      <div class="jleg">
-        <div class="jline"></div>
-        <div class="jdist${lastPtJourney > 0 ? ' chain-train-loading' : ''}" id="chain-train-${idx}">${lastPtJourney > 0 ? '🚂' : (fmtLegTime(best.distFromHome, legLabel) || fmt(best.distFromHome))}</div>
-      </div>
-      <div class="jnode">
-        <div class="jicon jicon-stop">${best.icon}</div>
-        <div class="jlabel">${best.name}</div>
-        <div class="jsub">${best.type}</div>
-      </div>
-      <div class="jleg">
-        <div class="jline"></div>
-        <div class="jdist">${fmtLegTime(best.distToTrail, legLabel) || fmt(best.distToTrail)}</div>
-      </div>
-      <div class="jnode">
-        <div class="jicon jicon-trail">🏔️</div>
-        <div class="jlabel">Trailhead</div>
-        ${trail.trailDist ? `<div class="jsub">${trail.trailDist}km</div>` : ''}
-      </div>`;
+        const chips = [];
+        const sep = () => chips.push(`<span class="jchip-sep">›</span>`);
+        chips.push(`<span class="jchip jchip-home">🏠 Home</span>`);
+        if (dep) {
+          sep();
+          chips.push(`<span class="jchip jchip-walk">🚶 ${fmtLegTime(dep.distFromHome, legLabel) || fmt(dep.distFromHome)}</span>`);
+          sep();
+          chips.push(`<span class="jchip jchip-pt">${dep.icon} ${dep.name}</span>`);
+        }
+        sep();
+        chips.push(`<span class="jchip jchip-pt chain-train-loading" id="chain-train-${idx}">🚂</span>`);
+        if (best && dep) {
+          sep();
+          chips.push(`<span class="jchip jchip-pt">${best.icon} ${best.name}</span>`);
+          sep();
+          chips.push(`<span class="jchip jchip-walk">🚶 ${fmtLegTime(best.distToTrail, legLabel) || fmt(best.distToTrail)}</span>`);
+        }
+        sep();
+        chips.push(`<span class="jchip jchip-trail">🏔️ Trailhead${trail.trailDist ? ' · ' + trail.trailDist + 'km' : ''}</span>`);
+        return chips.join('');
       })()}
-
     </div>
 
     <div class="duration-row">
@@ -3084,39 +2982,27 @@ function applyRealLegs(idx, legs) {
   const chain = document.querySelector(`#card-${idx} .journey-chain`);
   if (!chain) return;
 
-  // Build nodes: each walk/pt leg becomes a node+connector
-  const nodes = [];
+  const chips = [];
+  const sep = () => chips.push(`<span class="jchip-sep">›</span>`);
 
-  // Home node (always first)
-  nodes.push(`<div class="jnode"><div class="jicon jicon-home">🏠</div><div class="jlabel">Home</div></div>`);
+  chips.push(`<span class="jchip jchip-home">🏠 Home</span>`);
 
   for (const leg of legs) {
+    sep();
     if (leg.type === 'walk') {
-      const label = leg.dist_m < 100 ? '' : fmt(leg.dist_m);
-      nodes.push(`<div class="jleg"><div class="jline"></div><div class="jdist">🚶 ${label ? label + ' · ' : ''}${leg.mins}min</div></div>`);
+      const dist = leg.dist_m >= 100 ? ` ${fmt(leg.dist_m)}` : '';
+      chips.push(`<span class="jchip jchip-walk">🚶${dist} ${leg.mins}min</span>`);
     } else {
-      // Arrival stop node
-      nodes.push(`<div class="jnode">
-        <div class="jicon jicon-stop">${leg.icon}</div>
-        <div class="jlabel">${leg.from}</div>
-        <div class="jsub">${leg.desc || leg.line}</div>
-      </div>`);
-      // PT leg connector
-      nodes.push(`<div class="jleg"><div class="jline"></div><div class="jdist">${leg.icon} ${leg.mins}min${leg.line ? '<br><span style="font-size:.62rem;opacity:.7">' + leg.line + '</span>' : ''}</div></div>`);
-      // Destination stop node (only add if next leg isn't walk to same place, or it's the last pt leg)
-      nodes.push(`<div class="jnode">
-        <div class="jicon jicon-stop">${leg.icon}</div>
-        <div class="jlabel">${leg.to}</div>
-        <div class="jsub">${leg.desc || ''}</div>
-      </div>`);
+      const linePart = leg.line ? ` <span class="jchip-line">${leg.line}</span>` : '';
+      chips.push(`<span class="jchip jchip-pt">${leg.icon}${linePart} ${leg.mins}min</span>`);
     }
   }
 
-  // Trailhead node
   const trail = currentTrails[idx];
-  nodes.push(`<div class="jnode"><div class="jicon jicon-trail">🏔️</div><div class="jlabel">Trailhead</div>${trail.trailDist ? `<div class="jsub">${trail.trailDist}km</div>` : ''}</div>`);
+  sep();
+  chips.push(`<span class="jchip jchip-trail">🏔️ Trailhead${trail.trailDist ? ' · ' + trail.trailDist + 'km' : ''}</span>`);
 
-  chain.innerHTML = nodes.join('');
+  chain.innerHTML = chips.join('');
 }
 
 // ── Filters ───────────────────────────────────────────────────────────────────
