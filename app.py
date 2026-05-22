@@ -48,9 +48,22 @@ def init_db():
         lat           REAL    NOT NULL,
         lon           REAL    NOT NULL,
         dist_km       REAL,
-        gpx_data      TEXT    NOT NULL,
+        gpx_data      TEXT,
+        notes         TEXT,
+        is_pin        INTEGER DEFAULT 0,
         created_at    TEXT    DEFAULT (datetime('now'))
     )''')
+    # Migration: make gpx_data nullable and add notes/is_pin for existing DBs
+    for col, defn in [('notes', 'TEXT'), ('is_pin', 'INTEGER DEFAULT 0')]:
+        try:
+            db.execute(f'ALTER TABLE custom_routes ADD COLUMN {col} {defn}')
+        except Exception:
+            pass
+    try:
+        # SQLite can't ALTER NOT NULL, so we silently ignore if gpx_data is still NOT NULL
+        pass
+    except Exception:
+        pass
     db.execute('''CREATE TABLE IF NOT EXISTS reviews (
         id         INTEGER PRIMARY KEY AUTOINCREMENT,
         trail_id   TEXT    NOT NULL,
@@ -803,7 +816,24 @@ def api_custom_routes():
     data   = request.json
     action = data.get('action', 'list')
     db     = get_db()
-    if action == 'delete':
+    if action == 'add-pin':
+        try:
+            lat   = float(data['lat'])
+            lon   = float(data['lon'])
+            name  = str(data.get('name', 'Custom pin')).strip() or 'Custom pin'
+            notes = str(data.get('notes', '')).strip()
+            atype = str(data.get('activity_type', 'hiking'))
+        except (KeyError, ValueError, TypeError):
+            db.close()
+            return jsonify({'error': 'Invalid pin data'}), 400
+        cur = db.execute(
+            'INSERT INTO custom_routes (name, activity_type, lat, lon, notes, is_pin, gpx_data) VALUES (?,?,?,?,?,1,NULL)',
+            (name, atype, lat, lon, notes or None)
+        )
+        pin_id = cur.lastrowid
+        db.commit(); db.close()
+        return jsonify({'ok': True, 'id': pin_id, 'name': name})
+    elif action == 'delete':
         db.execute('DELETE FROM custom_routes WHERE id=?', (data['id'],))
         db.commit(); db.close()
         return jsonify({'ok': True})
@@ -819,7 +849,7 @@ def api_custom_routes():
                         headers={'Content-Disposition': f'attachment; filename="{fname}.gpx"'})
     else:
         rows   = db.execute(
-            'SELECT id,name,activity_type,lat,lon,dist_km,created_at FROM custom_routes ORDER BY created_at DESC'
+            'SELECT id,name,activity_type,lat,lon,dist_km,notes,is_pin,created_at FROM custom_routes ORDER BY created_at DESC'
         ).fetchall()
         db.close()
         routes = [dict(r) for r in rows]

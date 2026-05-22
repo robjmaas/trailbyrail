@@ -143,6 +143,12 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
 /* Terrain badge on cards */
 .terrain-tags{display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.35rem}
 .terrain-tag{display:inline-flex;align-items:center;gap:.25rem;font-size:.72rem;font-weight:600;padding:.15rem .55rem;border-radius:12px;background:rgba(58,125,82,.1);color:var(--forest-med);border:1px solid rgba(58,125,82,.2)}
+/* ── Custom pins ── */
+.pin-notes{font-size:.82rem;color:var(--bark);margin-top:.3rem;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+.pin-form{padding:1.1rem;background:var(--cloud);border-radius:12px;margin-bottom:1rem;display:none}
+.pin-form .input-group{margin-bottom:.7rem}
+.pin-coord-row{display:flex;gap:.5rem;align-items:center}
+.pin-coord-row input{flex:1;min-width:0}
 /* ── Event trailhead mode ── */
 .event-banner{background:linear-gradient(135deg,var(--moss) 0%,var(--forest-dark) 100%);color:white;border-radius:20px;padding:1.4rem 1.6rem;margin-bottom:1.25rem;box-shadow:0 8px 32px rgba(58,125,82,.35),0 0 0 1px rgba(255,255,255,.1) inset;animation:fadeIn .5s ease-out both}
 .event-banner-tag{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;opacity:.7;margin-bottom:.4rem}
@@ -664,9 +670,46 @@ details.api-settings[open] summary{margin-bottom:.85rem}
   <details class="my-routes-drawer" id="myRoutesDrawer">
     <summary>📁 My Routes</summary>
     <div class="my-routes-body">
-      <div style="display:flex;justify-content:flex-end;margin-bottom:.75rem">
+      <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-bottom:.75rem;flex-wrap:wrap">
+        <button class="act-btn" onclick="togglePinForm()">📍 Add pin</button>
         <button class="act-btn" onclick="toggleUploadForm()">+ Upload GPX</button>
       </div>
+
+      <!-- Add custom pin form -->
+      <div class="pin-form" id="pinForm">
+        <div class="input-group">
+          <label for="pinName">Title <span style="color:var(--moss);font-weight:400">(required)</span></label>
+          <input type="text" id="pinName" placeholder="e.g. Parking lot at Veluwe start">
+        </div>
+        <div class="input-group">
+          <label>Coordinates</label>
+          <div class="pin-coord-row">
+            <input type="number" id="pinLat" placeholder="Lat e.g. 52.0345" step="any">
+            <input type="number" id="pinLon" placeholder="Lon e.g. 5.8123" step="any">
+            <button type="button" class="act-btn" title="Use current location" onclick="pinUseMyLocation()" style="padding:.55rem .7rem;flex-shrink:0">📡</button>
+          </div>
+          <div id="pinLocStatus" style="font-size:.78rem;color:var(--moss);margin-top:.25rem"></div>
+        </div>
+        <div class="input-group">
+          <label for="pinNotes">Info / description <span style="color:var(--moss);font-weight:400">(optional)</span></label>
+          <textarea id="pinNotes" rows="3" placeholder="Meeting point, parking info, access notes…" style="resize:vertical;font-family:inherit;font-size:.9rem;padding:.6rem .75rem;border:2px solid var(--moss-light,#b2d1bb);border-radius:10px;background:white;width:100%;box-sizing:border-box"></textarea>
+        </div>
+        <div class="input-group">
+          <label for="pinActivity">Activity</label>
+          <select id="pinActivity">
+            <option value="hiking">🥾 Hiking</option>
+            <option value="cycling">🚴 Cycling</option>
+            <option value="swimming">🏊 Swimming</option>
+            <option value="skiing">⛷️ Skiing</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:.5rem;align-items:center">
+          <button class="act-btn primary" onclick="doAddPin()">📍 Save pin</button>
+          <button class="act-btn" onclick="togglePinForm()">Cancel</button>
+          <span id="pinStatus" style="font-size:.82rem;margin-left:.25rem"></span>
+        </div>
+      </div>
+
       <div class="upload-form" id="uploadForm">
         <div class="input-group" style="margin-bottom:.75rem">
           <label for="uploadName">Route name <span style="font-weight:400;color:var(--moss)">(optional)</span></label>
@@ -2021,6 +2064,7 @@ function renderCard(trail, idx) {
       <div>
         <div class="trail-name">${trail.icon} ${trail.name}${srcPill}${isDestMode ? '<span class="dest-badge">✈️ Destination</span>' : ''}${avgBadge}</div>
         <div class="trail-sub">${[trail.sub, diffLabel, elevLabel].filter(Boolean).join(' · ')}</div>
+        ${trail.notes ? `<div class="pin-notes">${trail.notes.replace(/</g,'&lt;')}</div>` : ''}
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.4rem">
         <span class="type-badge ${badgeClass}">${trail.label}${trail.isLoop ? ' 🔁' : ''}</span>
@@ -2438,7 +2482,10 @@ async function fetchCustomRoutes(lat, lon, radiusM) {
     const rows = await r.json();
     return (Array.isArray(rows) ? rows : []).map(row => ({
       id: `custom_${row.id}`, dbId: row.id,
-      name: row.name, sub: 'My Route',
+      name: row.name,
+      sub: row.is_pin ? '📍 Custom pin' : 'My Route',
+      notes: row.notes || null,
+      isPin: !!row.is_pin,
       trailDist: row.dist_km ? String(row.dist_km) : null,
       isLoop: false, difficulty: null, elevGain: null,
       type: row.activity_type === 'cycling' || row.activity_type === 'mtb' ? 'cycling' : 'hiking',
@@ -2465,10 +2512,11 @@ async function loadMyRoutes() {
     listEl.innerHTML = rows.map(row => `
       <div class="route-item">
         <div class="route-item-info">
-          <div class="route-item-name">${row.name}</div>
+          <div class="route-item-name">${row.is_pin ? '📍 ' : ''}${row.name}</div>
           <div class="route-item-meta">${row.activity_type}${row.dist_km ? ' · ' + row.dist_km + 'km' : ''} · ${row.created_at.split(' ')[0]}</div>
+          ${row.notes ? `<div style="font-size:.78rem;color:var(--bark);margin-top:.2rem;opacity:.8">${row.notes.replace(/</g,'&lt;').substring(0,80)}${row.notes.length>80?'…':''}</div>` : ''}
         </div>
-        <button class="act-btn" style="padding:.4rem .7rem" onclick="downloadCustomGPX(${row.id},'${row.name.replace(/'/g,"\\'")}')">📥</button>
+        ${!row.is_pin ? `<button class="act-btn" style="padding:.4rem .7rem" onclick="downloadCustomGPX(${row.id},'${row.name.replace(/'/g,"\\'")}')">📥</button>` : ''}
         <button class="btn-delete" onclick="deleteCustomRoute(${row.id})" title="Delete">🗑️</button>
       </div>`).join('');
   } catch(e) {
@@ -2525,6 +2573,61 @@ function toggleUploadForm() {
   const f = document.getElementById('uploadForm');
   f.style.display = f.style.display === 'block' ? 'none' : 'block';
   document.getElementById('uploadStatus').innerHTML = '';
+}
+
+function togglePinForm() {
+  const f = document.getElementById('pinForm');
+  f.style.display = f.style.display === 'block' ? 'none' : 'block';
+  document.getElementById('pinStatus').textContent = '';
+  // Close GPX form if open
+  if (f.style.display === 'block') document.getElementById('uploadForm').style.display = 'none';
+}
+
+function pinUseMyLocation() {
+  const status = document.getElementById('pinLocStatus');
+  status.textContent = 'Detecting…';
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      document.getElementById('pinLat').value = pos.coords.latitude.toFixed(6);
+      document.getElementById('pinLon').value = pos.coords.longitude.toFixed(6);
+      status.textContent = '✅ Location detected';
+      setTimeout(() => { status.textContent = ''; }, 3000);
+    },
+    () => { status.textContent = '⚠️ Could not detect location'; }
+  );
+}
+
+async function doAddPin() {
+  const name  = document.getElementById('pinName').value.trim();
+  const lat   = parseFloat(document.getElementById('pinLat').value);
+  const lon   = parseFloat(document.getElementById('pinLon').value);
+  const notes = document.getElementById('pinNotes').value.trim();
+  const atype = document.getElementById('pinActivity').value;
+  const status = document.getElementById('pinStatus');
+
+  if (!name)         { status.innerHTML = '<span style="color:#c33">Please enter a title</span>'; return; }
+  if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+    status.innerHTML = '<span style="color:#c33">Please enter valid coordinates</span>'; return;
+  }
+
+  status.textContent = 'Saving…';
+  try {
+    const r = await fetch('/api/custom-routes', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({action: 'add-pin', name, lat, lon, notes, activity_type: atype})
+    });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    status.innerHTML = `<span style="color:var(--moss)">✅ "${d.name}" saved</span>`;
+    document.getElementById('pinName').value = '';
+    document.getElementById('pinLat').value = '';
+    document.getElementById('pinLon').value = '';
+    document.getElementById('pinNotes').value = '';
+    loadMyRoutes();
+    setTimeout(() => { togglePinForm(); status.textContent = ''; }, 1800);
+  } catch(e) {
+    status.innerHTML = `<span style="color:#c33">⚠️ ${e.message}</span>`;
+  }
 }
 
 async function getLocation(force = false) {
