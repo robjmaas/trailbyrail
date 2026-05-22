@@ -534,6 +534,12 @@ details.api-settings[open] summary{margin-bottom:.85rem}
         </select>
       </div>
 
+      <!-- Trail type sub-selector (updates with activity) -->
+      <div class="input-group" id="trailTypeGroup">
+        <label style="font-size:.78rem;opacity:.7;font-weight:500;text-transform:none;letter-spacing:.03em">What to search for</label>
+        <div class="chip-row" id="trailTypeChips"></div>
+      </div>
+
       <!-- Terrain preferences -->
       <div class="input-group">
         <label style="font-size:.78rem;opacity:.7;font-weight:500;text-transform:none;letter-spacing:.03em">🗺️ Preferred landscape <span style="font-weight:300">(optional, multi-select)</span></label>
@@ -587,10 +593,6 @@ details.api-settings[open] summary{margin-bottom:.85rem}
       <details class="api-settings" id="advancedSettings">
         <summary>Custom distances &amp; transport</summary>
         <div style="display:flex;flex-direction:column;gap:1.1rem;margin-top:.85rem">
-          <div class="input-group" id="trailTypeGroup">
-            <label>Trail types</label>
-            <div class="chip-row" id="trailTypeChips"></div>
-          </div>
           <div class="input-group">
             <label>Transport modes</label>
             <div class="chip-row">
