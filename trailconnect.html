@@ -101,6 +101,8 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
 .jtransit{margin:.12rem 0 .12rem 1.4rem;padding:.2rem .65rem;background:var(--moss);color:white;border-radius:20px;display:inline-block;font-size:.75rem;font-weight:700;line-height:1.4}
 .jwalk{margin:.1rem 0 .1rem 1.4rem;font-size:.75rem;color:var(--forest-med);font-weight:600}
 .jtransit-loading{opacity:.6;animation:trainPulse 1.4s ease-in-out infinite}
+.jtransit-retry{margin:.12rem 0 .12rem 1.4rem;padding:.18rem .55rem;background:transparent;color:var(--forest-med);border:1.5px dashed var(--forest-med);border-radius:20px;display:inline-flex;align-items:center;gap:.3rem;font-size:.74rem;font-weight:600;cursor:pointer;line-height:1.4;opacity:.75}
+.jtransit-retry:hover{opacity:1;border-color:var(--moss);color:var(--moss)}
 /* Stops */
 .stops-section{margin-top:1.25rem}
 .stops-title{font-size:.78rem;font-weight:700;color:var(--moss);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.65rem}
@@ -2856,6 +2858,13 @@ function _lsTransitSet(key, data) {
     localStorage.setItem(TRANSIT_LS_KEY, JSON.stringify(store));
   } catch {}
 }
+function _lsTransitDelete(key) {
+  try {
+    const store = JSON.parse(localStorage.getItem(TRANSIT_LS_KEY) || '{}');
+    delete store[key];
+    localStorage.setItem(TRANSIT_LS_KEY, JSON.stringify(store));
+  } catch {}
+}
 
 async function fetchOneTransitTime(destLat, destLon) {
   const oLat = Math.round(homeLat * 10000) / 10000;
@@ -2900,8 +2909,7 @@ async function fetchTransitTimes(results) {
     if (!d) {
       results.forEach((_, i) => {
         const el = document.getElementById(`transit-${i}`); if (el) el.innerHTML = '';
-        const ct = document.getElementById(`chain-train-${i}`);
-        if (ct) { ct.classList.remove('jtransit-loading'); ct.textContent = '🚂'; }
+        _showTransitRetry(i);
       });
       return;
     }
@@ -2916,8 +2924,7 @@ async function fetchTransitTimes(results) {
       _applyTransitResult(i, d, results);
     } else {
       const el = document.getElementById(`transit-${i}`); if (el) el.innerHTML = '';
-      const ct = document.getElementById(`chain-train-${i}`);
-      if (ct) { ct.classList.remove('jtransit-loading'); ct.textContent = '🚂'; }
+      _showTransitRetry(i);
     }
     if (i < limit - 1) await new Promise(res => setTimeout(res, 300));
   }
@@ -2927,6 +2934,44 @@ async function fetchTransitTimes(results) {
   }
   // Re-sort cards by real total journey time now that we have accurate data
   resortByJourneyTime();
+}
+
+function _showTransitRetry(idx) {
+  const ct = document.getElementById(`chain-train-${idx}`);
+  if (!ct) return;
+  ct.classList.remove('jtransit-loading');
+  ct.className = 'jtransit-retry';
+  ct.innerHTML = `<span>🚂</span><span>Tap to retry</span>`;
+  ct.onclick = () => retryTransit(idx);
+}
+
+async function retryTransit(idx) {
+  const trail = currentTrails[idx];
+  if (!trail) return;
+  const ct = document.getElementById(`chain-train-${idx}`);
+  if (ct) {
+    ct.className = 'jtransit jtransit-loading';
+    ct.innerHTML = '🚂 checking route…';
+    ct.onclick = null;
+  }
+  const el = document.getElementById(`transit-${idx}`);
+  if (el) el.innerHTML = `<span style="display:inline-block;width:12px;height:12px;border-radius:50%;border:2px solid var(--moss);border-top-color:transparent;animation:spin .8s linear infinite"></span>`;
+
+  // Bypass cache: delete the key so fetchOneTransitTime re-fetches
+  const oLat = Math.round(homeLat * 10000) / 10000;
+  const oLon = Math.round(homeLon * 10000) / 10000;
+  const dLat = Math.round(trail.lat * 10000) / 10000;
+  const dLon = Math.round(trail.lon * 10000) / 10000;
+  const cKey = `${oLat},${oLon},${dLat},${dLon}`;
+  _lsTransitDelete(cKey);
+
+  const d = await fetchOneTransitTime(trail.lat, trail.lon);
+  if (d) {
+    _applyTransitResult(idx, d, currentTrails);
+  } else {
+    if (el) el.innerHTML = '';
+    _showTransitRetry(idx);
+  }
 }
 
 function resortByJourneyTime() {
