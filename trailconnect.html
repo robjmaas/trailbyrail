@@ -26,7 +26,9 @@ header{text-align:center;padding:3.5rem 1rem 2.5rem;animation:slideDown .9s cubi
 .wordmark em{font-style:normal;color:var(--trail-tan)}
 .hero-slogan{margin:0 auto 1rem;max-width:560px}
 .slogan-main{display:block;font-size:clamp(1.1rem,3vw,1.55rem);font-weight:700;color:#fff;line-height:1.35;letter-spacing:-.01em}
-.slogan-sub{display:inline-block;margin-top:.55rem;font-size:.95rem;color:rgba(255,255,255,.65);font-weight:300;letter-spacing:.04em}
+.slogan-sub{display:block;margin-top:.65rem;font-size:.88rem;color:rgba(255,255,255,.55);font-weight:300;letter-spacing:.03em}
+.slogan-modes{display:flex;flex-wrap:wrap;justify-content:center;gap:.4rem;margin-top:.55rem}
+.slogan-mode{display:inline-flex;align-items:center;gap:.3rem;padding:.28rem .7rem;border-radius:20px;font-size:.8rem;font-weight:600;letter-spacing:.01em;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);color:rgba(255,255,255,.82);backdrop-filter:blur(4px)}
 .slogan-highlight{background:var(--trail-tan);color:var(--forest-dark);padding:.05em .35em;border-radius:5px;font-style:italic;font-weight:700}
 .search-card{background:var(--cream);border-radius:24px;padding:2.5rem;box-shadow:0 24px 70px rgba(0,0,0,.45),0 0 0 1px rgba(255,255,255,.12) inset;margin-bottom:2rem;animation:fadeIn .8s ease-out .2s both;border:none;border-top:3px solid var(--trail-tan)}
 @keyframes fadeIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
@@ -395,7 +397,14 @@ details.api-settings[open] summary{margin-bottom:.85rem}
     <h1 class="wordmark">Trail<em>by</em>Rail</h1>
     <div class="hero-slogan">
       <span class="slogan-main">Discover trails — <span class="slogan-highlight">no car needed</span></span>
-      <span class="slogan-sub">Find hiking, cycling &amp; outdoor spots reachable by public transport<span style="opacity:.45;font-size:.85em"> — or by foot &amp; bike</span></span>
+      <span class="slogan-sub">Find hiking, cycling &amp; outdoor spots reachable by</span>
+      <div class="slogan-modes">
+        <span class="slogan-mode">🚂 Train</span>
+        <span class="slogan-mode">🚌 Bus &amp; tram</span>
+        <span class="slogan-mode">🚇 Metro</span>
+        <span class="slogan-mode">🚶 On foot</span>
+        <span class="slogan-mode">🚲 Bike</span>
+      </div>
     </div>
     <div class="auth-bar" id="authBar">
       <button class="auth-bar-btn auth-bar-btn-guide" onclick="showGuide()" title="How to use TrailbyRail"><span class="guide-btn-label">❓ How it works</span><span class="guide-btn-icon" style="display:none">❓</span></button>
