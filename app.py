@@ -664,59 +664,59 @@ def api_transit_time():
             days += 1
         dep = (now + timedelta(days=days)).replace(hour=9, minute=0, second=0, microsecond=0)
 
-    # OTP mode string → display icon
+    # MOTIS mode string → display icon
     MODE_ICON = {
-        'RAIL': '\U0001f682', 'SUBWAY': '\U0001f687', 'TRAM': '\U0001f68a',
-        'BUS': '\U0001f68c', 'FERRY': '⛴️', 'CABLE_CAR': '\U0001f6a1',
-        'GONDOLA': '\U0001f6a1', 'FUNICULAR': '\U0001f69e', 'COACH': '\U0001f68c',
+        'RAIL': '\U0001f682', 'REGIONAL_RAIL': '\U0001f682', 'SUBWAY': '\U0001f687',
+        'TRAM': '\U0001f68a', 'BUS': '\U0001f68c', 'FERRY': '⛴️',
+        'CABLE_CAR': '\U0001f6a1', 'GONDOLA': '\U0001f6a1', 'FUNICULAR': '\U0001f69e',
+        'COACH': '\U0001f68c', 'MONORAIL': '\U0001f69d', 'AIRPLANE': '✈️',
     }
+
+    def _parse_iso(s):
+        if not s: return None
+        return datetime.fromisoformat(s.replace('Z', '+00:00'))
 
     try:
         r = requests.get(
-            'https://api.transitous.org/otp/routers/default/plan',
+            'https://api.transitous.org/api/v1/plan',
             headers=HEADERS,
             params={
-                'fromPlace':       f'{o_lat},{o_lon}',
-                'toPlace':         f'{d_lat},{d_lon}',
-                'date':            dep.strftime('%Y-%m-%d'),
-                'time':            '09:00:00',
-                'mode':            'TRANSIT,WALK',
-                'numItineraries':  1,
-                'maxWalkDistance': 2000,
+                'fromPlace':      f'{o_lat},{o_lon}',
+                'toPlace':        f'{d_lat},{d_lon}',
+                'numItineraries': 1,
             },
             timeout=25,
         )
         r.raise_for_status()
         payload = r.json()
 
-        itineraries = (payload.get('plan') or {}).get('itineraries', [])
+        itineraries = payload.get('itineraries', [])
         if not itineraries:
-            err = payload.get('error') or {}
-            return jsonify({'error': err.get('msg') or 'No journey found'}), 404
+            err = payload.get('error') or ''
+            return jsonify({'error': str(err) or 'No journey found'}), 404
 
         itin     = itineraries[0]
         legs_raw = itin.get('legs', [])
         if not legs_raw:
             return jsonify({'error': 'No legs in itinerary'}), 404
 
-        # OTP gives ms timestamps
-        t0 = legs_raw[0].get('startTime', 0)
-        t1 = legs_raw[-1].get('endTime', 0)
-        duration_mins = round((t1 - t0) / 60000) if t0 and t1 else round(itin.get('duration', 0) / 60)
+        # MOTIS gives ISO string timestamps; fall back to itin.duration (seconds)
+        t0 = _parse_iso(itin.get('startTime'))
+        t1 = _parse_iso(itin.get('endTime'))
+        duration_mins = round((t1 - t0).total_seconds() / 60) if t0 and t1 else round(itin.get('duration', 0) / 60)
         if duration_mins <= 0:
             return jsonify({'error': 'Could not determine journey duration'}), 404
 
-        # Walk distances from first/last legs (OTP gives metres in .distance)
-        walk_to_dep_m   = round(legs_raw[0].get('distance',  0)) if legs_raw[0].get('mode') == 'WALK' else 0
-        walk_from_arr_m = round(legs_raw[-1].get('distance', 0)) if legs_raw[-1].get('mode') == 'WALK' else 0
+        # Walk distances from first/last legs (MOTIS gives metres in .distance)
+        walk_to_dep_m   = round(legs_raw[0].get('distance',  0) or 0) if legs_raw[0].get('mode') == 'WALK' else 0
+        walk_from_arr_m = round(legs_raw[-1].get('distance', 0) or 0) if legs_raw[-1].get('mode') == 'WALK' else 0
 
         legs_out = []
         for leg in legs_raw:
-            mode     = leg.get('mode', 'WALK')
-            leg_ms   = leg.get('endTime', 0) - leg.get('startTime', 0)
-            mins     = round(leg_ms / 60000) if leg_ms else 0
+            mode = leg.get('mode', 'WALK')
+            mins = round(leg.get('duration', 0) / 60)
             if mode == 'WALK':
-                dist_m = round(leg.get('distance', 0))
+                dist_m = round(leg.get('distance', 0) or 0)
                 if mins > 0:
                     legs_out.append({'type': 'walk', 'mins': mins, 'dist_m': dist_m})
             else:
