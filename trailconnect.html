@@ -135,6 +135,14 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
 .src-custom{background:#f3e5f5;color:#7b1fa2;border:1px solid #ce93d8}
 .loop-panel{display:none;margin-top:1rem;padding:1.1rem;background:var(--cloud);border-radius:12px;border:2px solid var(--moss);animation:fadeIn .25s ease-out}
 .loop-panel.open{display:block}
+/* Terrain preference chips */
+.terrain-chips{display:flex;gap:.4rem;flex-wrap:wrap}
+.terrain-chip{display:inline-flex;align-items:center;gap:.3rem;padding:.38rem .75rem;border:2px solid var(--moss);border-radius:20px;cursor:pointer;background:var(--cloud);font-size:.8rem;font-weight:600;color:var(--forest-dark);transition:all .18s;user-select:none;white-space:nowrap}
+.terrain-chip:hover{background:rgba(58,125,82,.1)}
+.terrain-chip.active{background:var(--forest-dark);border-color:var(--forest-dark);color:#fff}
+/* Terrain badge on cards */
+.terrain-tags{display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.35rem}
+.terrain-tag{display:inline-flex;align-items:center;gap:.25rem;font-size:.72rem;font-weight:600;padding:.15rem .55rem;border-radius:12px;background:rgba(58,125,82,.1);color:var(--forest-med);border:1px solid rgba(58,125,82,.2)}
 .gpx-panel{display:none;margin-top:.75rem;padding:.85rem 1rem;background:var(--cloud);border-radius:12px;border:2px solid var(--moss);animation:fadeIn .2s ease-out}
 .gpx-panel.open{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
 .gpx-panel-label{font-size:.78rem;font-weight:700;color:var(--moss);text-transform:uppercase;letter-spacing:.05em;width:100%;margin-bottom:.1rem}
@@ -524,6 +532,20 @@ details.api-settings[open] summary{margin-bottom:.85rem}
           <option value="swimming">swimming</option>
           <option value="skiing">skiing</option>
         </select>
+      </div>
+
+      <!-- Terrain preferences -->
+      <div class="input-group">
+        <label style="font-size:.78rem;opacity:.7;font-weight:500;text-transform:none;letter-spacing:.03em">🗺️ Preferred landscape <span style="font-weight:300">(optional, multi-select)</span></label>
+        <div class="terrain-chips" id="terrainChips">
+          <button type="button" class="terrain-chip" data-terrain="forest"  onclick="toggleTerrain('forest')">🌲 Forest</button>
+          <button type="button" class="terrain-chip" data-terrain="coastal" onclick="toggleTerrain('coastal')">🌊 Coast & sea</button>
+          <button type="button" class="terrain-chip" data-terrain="heath"   onclick="toggleTerrain('heath')">🌾 Heath & dunes</button>
+          <button type="button" class="terrain-chip" data-terrain="hills"   onclick="toggleTerrain('hills')">⛰️ Hills & mountains</button>
+          <button type="button" class="terrain-chip" data-terrain="water"   onclick="toggleTerrain('water')">💧 Lakes & rivers</button>
+          <button type="button" class="terrain-chip" data-terrain="polder"  onclick="toggleTerrain('polder')">🌿 Polder & flat</button>
+          <button type="button" class="terrain-chip" data-terrain="urban"   onclick="toggleTerrain('urban')">🏙️ City & parks</button>
+        </div>
       </div>
 
       <!-- ── Trip presets ── -->
@@ -1747,6 +1769,7 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
               sugResults.forEach((t, i) => fetchWeatherForCard(i, t.lat, t.lon));
               highlightPendingTrail();
               fetchTransitTimes(sugResults);
+              fetchTerrainForResults(sugResults);
               return;
             }
           } catch(e) {
@@ -1823,6 +1846,7 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
           fbResults.forEach((t, i) => fetchWeatherForCard(i, t.lat, t.lon));
           highlightPendingTrail();
           fetchTransitTimes(fbResults);
+          fetchTerrainForResults(fbResults);
           return;
         }
         // Fall through to show noIcon/noTitle/noBody if all searches empty
@@ -1863,8 +1887,8 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
       </div>`;
     results.forEach((t, i) => fetchWeatherForCard(i, t.lat, t.lon));
     highlightPendingTrail();
-    // Fetch real transit times async (non-blocking — cards already shown)
     fetchTransitTimes(results);
+    fetchTerrainForResults(results);
 
   } catch(err) {
     btn.disabled = false;
@@ -2088,6 +2112,8 @@ function renderCard(trail, idx) {
         <span style="font-size:.75rem;color:var(--moss)">checking journey…</span>
       </span>
     </div>
+
+    <div id="terrain-tags-${idx}" class="terrain-tags"></div>
 
     <div id="weather-${idx}"></div>
 
@@ -2445,6 +2471,121 @@ async function fetchWeatherForCard(idx, lat, lon) {
     el.innerHTML = `<div class="weather-row">${days.join('')}</div>`;
   } catch { /* silently skip */ }
 }
+
+// ── Terrain preferences ───────────────────────────────────────────────────────
+const TERRAIN_DEFS = {
+  forest:  { icon: '🌲', label: 'Forest',         osm: [['natural','wood'],['landuse','forest']] },
+  coastal: { icon: '🌊', label: 'Coast & sea',    osm: [['natural','coastline'],['natural','beach'],['natural','sand']] },
+  heath:   { icon: '🌾', label: 'Heath & dunes',  osm: [['natural','heath'],['natural','dune'],['natural','scrub']] },
+  hills:   { icon: '⛰️', label: 'Hills',          osm: [['natural','peak'],['natural','cliff'],['natural','fell']] },
+  water:   { icon: '💧', label: 'Lakes & rivers', osm: [['natural','water'],['waterway','river'],['waterway','stream']] },
+  polder:  { icon: '🌿', label: 'Polder & flat',  osm: [['landuse','farmland'],['landuse','meadow'],['natural','wetland']] },
+  urban:   { icon: '🏙️', label: 'City & parks',  osm: [['leisure','park'],['landuse','recreation_ground'],['leisure','garden']] },
+};
+
+let terrainPrefs = new Set(JSON.parse(localStorage.getItem('terrainPrefs') || '[]'));
+
+function toggleTerrain(key) {
+  if (terrainPrefs.has(key)) terrainPrefs.delete(key);
+  else terrainPrefs.add(key);
+  localStorage.setItem('terrainPrefs', JSON.stringify([...terrainPrefs]));
+  document.querySelectorAll('.terrain-chip').forEach(c =>
+    c.classList.toggle('active', terrainPrefs.has(c.dataset.terrain))
+  );
+  applyTerrainFilter();
+}
+
+function applyTerrainFilter() {
+  if (!terrainPrefs.size) {
+    // No preference — show everything
+    currentTrails.forEach((_, i) => {
+      const card = document.getElementById(`card-${i}`);
+      if (card) card.style.opacity = '';
+    });
+    return;
+  }
+  currentTrails.forEach((t, i) => {
+    const card = document.getElementById(`card-${i}`);
+    if (!card) return;
+    const types = t.terrainTypes || [];
+    const match = types.some(type => terrainPrefs.has(type));
+    // Dim non-matching cards rather than hide — terrain data may still be loading
+    card.style.opacity = (types.length === 0 || match) ? '' : '0.35';
+  });
+}
+
+async function fetchTerrainForResults(results) {
+  if (!results.length) return;
+  // Build a bounding box covering all trail positions + 1km padding
+  const lats = results.map(t => t.lat), lons = results.map(t => t.lon);
+  const pad = 0.02; // ~2km
+  const bb = `${Math.min(...lats)-pad},${Math.min(...lons)-pad},${Math.max(...lats)+pad},${Math.max(...lons)+pad}`;
+
+  // One combined Overpass query for all terrain feature types
+  const lines = [
+    `way["natural"="wood"](${bb});`,
+    `relation["natural"="wood"](${bb});`,
+    `way["landuse"="forest"](${bb});`,
+    `way["natural"="heath"](${bb});`,
+    `way["natural"="dune"](${bb});`,
+    `way["natural"="coastline"](${bb});`,
+    `way["natural"="beach"](${bb});`,
+    `way["natural"="sand"](${bb});`,
+    `node["natural"="peak"](${bb});`,
+    `way["natural"="cliff"](${bb});`,
+    `way["natural"="water"](${bb});`,
+    `way["waterway"="river"](${bb});`,
+    `way["landuse"="farmland"](${bb});`,
+    `way["natural"="wetland"](${bb});`,
+    `way["leisure"="park"](${bb});`,
+    `way["landuse"="recreation_ground"](${bb});`,
+  ].join('\n  ');
+
+  let data;
+  try {
+    data = await overpass(`[out:json][timeout:20][maxsize:8388608];(\n  ${lines}\n);out center tags 500;`);
+  } catch { return; }
+
+  const features = (data.elements || []).map(el => {
+    const c = el.center || {lat: el.lat, lon: el.lon};
+    if (!c?.lat) return null;
+    const tags = el.tags || {};
+    let type = null;
+    if (tags.natural === 'wood' || tags.landuse === 'forest')       type = 'forest';
+    else if (tags.natural === 'heath' || tags.natural === 'dune')   type = 'heath';
+    else if (tags.natural === 'coastline' || tags.natural === 'beach' || tags.natural === 'sand') type = 'coastal';
+    else if (tags.natural === 'peak' || tags.natural === 'cliff')   type = 'hills';
+    else if (tags.natural === 'water' || tags.waterway === 'river') type = 'water';
+    else if (tags.landuse === 'farmland' || tags.natural === 'wetland') type = 'polder';
+    else if (tags.leisure === 'park' || tags.landuse === 'recreation_ground') type = 'urban';
+    return type ? {lat: c.lat, lon: c.lon, type} : null;
+  }).filter(Boolean);
+
+  // Classify each trail by which terrain features are within 2km
+  results.forEach((trail, i) => {
+    const found = new Set();
+    for (const f of features) {
+      if (dist(trail.lat, trail.lon, f.lat, f.lon) <= 2000) found.add(f.type);
+    }
+    trail.terrainTypes = [...found];
+    const el = document.getElementById(`terrain-tags-${i}`);
+    if (el && found.size) {
+      el.innerHTML = [...found].map(t =>
+        `<span class="terrain-tag">${TERRAIN_DEFS[t].icon} ${TERRAIN_DEFS[t].label}</span>`
+      ).join('');
+    }
+  });
+
+  applyTerrainFilter();
+}
+
+// Restore saved terrain chip states on load
+document.addEventListener('DOMContentLoaded', () => {
+  terrainPrefs.forEach(key => {
+    const chip = document.querySelector(`.terrain-chip[data-terrain="${key}"]`);
+    if (chip) chip.classList.add('active');
+  });
+});
 
 // ── Real transit times via transport.rest (DB HAFAS, no API key) ─────────────
 async function fetchTransitTimes(results) {
