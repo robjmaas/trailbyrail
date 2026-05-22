@@ -985,10 +985,11 @@ function fmtMins(m) {
 }
 
 // Returns "~Xmin" for a journey leg given distance in metres and transport mode.
+// Train: aerial dist × 1.3 routing factor ÷ 55 km/h average (incl. stops) → ~706 m/min effective
 function fmtLegTime(distM, mode) {
   if (!distM || distM <= 0) return null;
-  // m/min speeds: walk=83, cycle=250, train=1333
-  const mpm = mode === 'train' ? (80000/60) : mode === 'cycle' ? 250 : (5000/60);
+  // m/min speeds: walk=83, cycle=250, train=706 (55km/h avg ÷ 1.3× routing)
+  const mpm = mode === 'train' ? (55000 / 60 / 1.3) : mode === 'cycle' ? 250 : (5000/60);
   return '~' + fmtMins(Math.round(distM / mpm));
 }
 
@@ -1638,9 +1639,11 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
       if (best0) {
         if (ptJourney > 0 && departureStop) {
           const trainDist = dist(departureStop.lat, departureStop.lon, best0.lat, best0.lon);
+          // 55 km/h avg speed (incl. stops) × 1.3 routing factor → ~706 m/min effective
+          const trainMpm = 55000 / 60 / 1.3;
           journeyMins = Math.round(
             departureStop.distFromHome / moveSpeedMpMin +
-            trainDist / (80000 / 60) +
+            trainDist / trainMpm +
             best0.distToTrail / moveSpeedMpMin
           );
         } else if (!isDestMode) {
@@ -2590,39 +2593,50 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ── Real transit times via transport.rest (DB HAFAS, no API key) ─────────────
+// Fetch one transit time with a 15-second AbortController timeout.
+// Returns the JSON response or null on timeout / network error.
+async function fetchOneTransitTime(destLat, destLon) {
+  const controller = new AbortController();
+  const tid = setTimeout(() => controller.abort(), 15000);
+  try {
+    const r = await fetch('/api/transit-time', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({origin_lat: homeLat, origin_lon: homeLon, dest_lat: destLat, dest_lon: destLon}),
+      signal: controller.signal,
+    });
+    clearTimeout(tid);
+    return await r.json();
+  } catch {
+    clearTimeout(tid);
+    return null;
+  }
+}
+
 async function fetchTransitTimes(results) {
   if (!homeLat || !homeLon) {
     // No home coords — clear all spinners
     results.forEach((_, i) => { const el = document.getElementById(`transit-${i}`); if (el) el.innerHTML = ''; });
     return;
   }
-  // Quick probe: check first result — if 503 (no key) clear all spinners immediately
+  // Quick probe: check first result — if it returns null (503 / timeout) clear all and bail
   const probe = results[0];
   if (probe) {
-    try {
-      const pr = await fetch('/api/transit-time', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({origin_lat:homeLat, origin_lon:homeLon, dest_lat:probe.lat, dest_lon:probe.lon})
-      });
-      const d = await pr.json();
-      _applyTransitResult(0, d, results);
-    } catch {
+    const d = await fetchOneTransitTime(probe.lat, probe.lon);
+    if (!d) {
       results.forEach((_, i) => { const el = document.getElementById(`transit-${i}`); if (el) el.innerHTML = ''; });
       return;
     }
+    _applyTransitResult(0, d, results);
   }
   // Fetch remaining results (probe already handled index 0)
   const limit = Math.min(results.length, 8);
   for (let i = 1; i < limit; i++) {
-    const t  = results[i];
-    try {
-      const r = await fetch('/api/transit-time', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({origin_lat: homeLat, origin_lon: homeLon, dest_lat: t.lat, dest_lon: t.lon})
-      });
-      const d = await r.json();
+    const t = results[i];
+    const d = await fetchOneTransitTime(t.lat, t.lon);
+    if (d) {
       _applyTransitResult(i, d, results);
-    } catch {
+    } else {
       const el = document.getElementById(`transit-${i}`); if (el) el.innerHTML = '';
     }
     if (i < limit - 1) await new Promise(res => setTimeout(res, 300));
