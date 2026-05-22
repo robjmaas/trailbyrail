@@ -1446,36 +1446,50 @@ async function fetchTrails(lat, lon, radiusM, subtypes) {
     subtypes.includes('park')     && `way["boundary"="national_park"]["name"](${bb});\n    relation["boundary"="national_park"]["name"](${bb});`,
     subtypes.includes('cycling')  && `relation["route"="bicycle"]["name"](${bb});`,
     subtypes.includes('mtb')      && `relation["route"="mtb"]["name"](${bb});`,
-    subtypes.includes('swimming') && `node["leisure"="swimming_area"](${bb});\n    node["sport"="swimming"]["leisure"](${bb});\n    way["leisure"="swimming_area"](${bb});`,
-    subtypes.includes('lido')     && `node["leisure"="swimming_pool"]["access"!="private"](${bb});\n    node["natural"="water"]["sport"="swimming"](${bb});\n    way["natural"="water"]["sport"="swimming"](${bb});`,
+    subtypes.includes('swimming') && `node["leisure"="swimming_area"](${bb});\n    way["leisure"="swimming_area"](${bb});\n    relation["leisure"="swimming_area"](${bb});\n    node["sport"="swimming"]["leisure"="sports_centre"](${bb});\n    way["sport"="swimming"]["leisure"="sports_centre"](${bb});`,
+    subtypes.includes('lido')     && `node["leisure"="swimming_pool"]["access"!="private"](${bb});\n    way["leisure"="swimming_pool"]["access"!="private"](${bb});\n    node["amenity"="swimming_pool"]["access"!="private"](${bb});\n    way["amenity"="swimming_pool"]["access"!="private"](${bb});\n    node["natural"="water"]["sport"="swimming"](${bb});\n    way["natural"="water"]["sport"="swimming"](${bb});\n    node["natural"="beach"]["sport"="swimming"](${bb});\n    way["natural"="beach"]["sport"="swimming"](${bb});`,
     subtypes.includes('downhill') && `node["leisure"="ski_resort"](${bb});\n    way["piste:type"="downhill"](${bb});\n    relation["route"="ski"]["piste:type"="downhill"](${bb});`,
     subtypes.includes('nordic')   && `relation["route"="ski"]["piste:type"="nordic"](${bb});\n    way["piste:type"="nordic"](${bb});`,
   ].filter(Boolean).join('\n    ');
   if (!lines) return [];
-  const q = `[out:json][timeout:35][maxsize:16777216];(\n    ${lines}\n  );out center tags 120;`;
+  const q = `[out:json][timeout:35][maxsize:16777216];(\n    ${lines}\n  );out center tags 200;`;
   const data = await overpass(q);
   const seen = new Set();
   return data.elements.map(el => {
     const tags = el.tags || {};
     const c = el.center || {lat: el.lat, lon: el.lon};
-    if (!c?.lat || !tags.name || seen.has(tags.name)) return null;
-    seen.add(tags.name);
+    if (!c?.lat) return null;
+
+    // Determine type first so we can decide whether a name is required
     let type = 'nature', label = 'Nature Area', icon = '🌿', wtType = null;
     if      (tags.route === 'hiking')                              { type='hiking';   label='Hiking Trail';    icon='🥾'; wtType='hiking'; }
     else if (tags.route === 'running')                             { type='hiking';   label='Running Route';   icon='🏃'; }
     else if (tags.route === 'bicycle')                             { type='cycling';  label='Cycling Route';   icon='🚴'; wtType='cycling'; }
     else if (tags.route === 'mtb')                                 { type='cycling';  label='MTB Route';       icon='🚵'; wtType='mtb'; }
-    else if (tags.leisure === 'swimming_area' || tags.sport === 'swimming') { type='swimming'; label='Swimming Spot';    icon='🏊'; }
-    else if (tags.leisure === 'swimming_pool')                     { type='swimming'; label='Swimming Pool';   icon='🏊'; }
+    else if (tags.leisure === 'swimming_area')                     { type='swimming'; label='Swimming Spot';   icon='🏊'; }
+    else if (tags.leisure === 'swimming_pool' || tags.amenity === 'swimming_pool') { type='swimming'; label='Swimming Pool'; icon='🏊'; }
     else if (tags.natural === 'water' && tags.sport === 'swimming'){ type='swimming'; label='Open Water';      icon='🌊'; }
+    else if (tags.natural === 'beach' && tags.sport === 'swimming'){ type='swimming'; label='Swimming Beach';  icon='🏖️'; }
+    else if (tags.sport === 'swimming')                            { type='swimming'; label='Swimming Spot';   icon='🏊'; }
     else if (tags.leisure === 'ski_resort')                        { type='skiing';   label='Ski Resort';      icon='⛷️'; }
     else if (tags['piste:type'] === 'downhill' || (tags.route === 'ski' && tags['piste:type'] === 'downhill')) { type='skiing'; label='Downhill Ski';  icon='⛷️'; }
     else if (tags['piste:type'] === 'nordic'   || (tags.route === 'ski' && tags['piste:type'] === 'nordic'))   { type='skiing'; label='Nordic Skiing'; icon='🎿'; }
     else if (tags.boundary === 'national_park')                    { type='nature';   label='National Park';   icon='🌲'; }
     else if (tags.leisure === 'nature_reserve')                    { type='nature';   label='Nature Reserve';  icon='🌿'; }
+
+    // Non-swimming types must have a name; swimming spots get a fallback label
+    const isSwimming = type === 'swimming';
+    const name = tags.name || (isSwimming ? `${label} #${el.id}` : null);
+    if (!name) return null;
+
+    // Dedup by name (swimming unnamed spots dedup by OSM id via fallback)
+    const dedupKey = tags.name || `osm:${el.id}`;
+    if (seen.has(dedupKey)) return null;
+    seen.add(dedupKey);
+
     return {
-      id: el.id, name: tags.name,
-      sub: tags.network || tags.operator || tags.ref || null,
+      id: el.id, name: tags.name || label,
+      sub: tags.name ? null : (tags.operator || tags.addr?.city || null),
       trailDist: tags.distance || tags['route:km'] || null,
       isLoop: tags.roundtrip === 'yes',
       type, label, icon, lat: c.lat, lon: c.lon,
