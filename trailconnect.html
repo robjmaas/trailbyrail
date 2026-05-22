@@ -395,7 +395,7 @@ details.api-settings[open] summary{margin-bottom:.85rem}
     <h1 class="wordmark">Trail<em>by</em>Rail</h1>
     <div class="hero-slogan">
       <span class="slogan-main">Discover trails — <span class="slogan-highlight">no car needed</span></span>
-      <span class="slogan-sub">Find hiking, cycling &amp; outdoor spots reachable by public transport</span>
+      <span class="slogan-sub">Find hiking, cycling &amp; outdoor spots reachable by public transport — or by foot &amp; bike</span>
     </div>
     <div class="auth-bar" id="authBar">
       <button class="auth-bar-btn auth-bar-btn-guide" onclick="showGuide()" title="How to use TrailbyRail"><span class="guide-btn-label">❓ How it works</span><span class="guide-btn-icon" style="display:none">❓</span></button>
@@ -436,7 +436,7 @@ details.api-settings[open] summary{margin-bottom:.85rem}
       <div class="guide-head">
         <div>
           <h2>How to use TrailbyRail</h2>
-          <p>Find trails near home or reachable by public transport — no car needed</p>
+          <p>Find trails reachable on foot, by bike, or by public transport — no car needed</p>
         </div>
         <button class="guide-close" onclick="closeGuide()">✕</button>
       </div>
@@ -1631,7 +1631,7 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
   resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
   resultsDiv.innerHTML = `<div class="loading">
     <div class="loading-spinner">🔄</div>
-    <div class="loading-msg">${isDestMode ? `Finding trails near <strong>${destLabel}</strong>…` : 'Finding trails reachable by public transport…'}</div>
+    <div class="loading-msg">${isDestMode ? `Finding trails near <strong>${destLabel}</strong>…` : 'Finding trails reachable by foot, bike &amp; public transport…'}</div>
     <div class="loading-sub">${isDestMode
       ? `Searching near ${destLabel} · ≤${fmt(walkFromStop)} from stop to trail`
       : ptJourney > 0
