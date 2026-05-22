@@ -2790,12 +2790,12 @@ const TERRAIN_DEFS = {
   urban:   { icon: '🏙️', label: 'City & parks',  osm: [['leisure','park'],['landuse','recreation_ground'],['leisure','garden']] },
 };
 
-let terrainPrefs = new Set(JSON.parse(localStorage.getItem('terrainPrefs') || '[]'));
+let terrainPrefs = new Set(); // never persisted — always starts empty each session
 
 function toggleTerrain(key) {
   if (terrainPrefs.has(key)) terrainPrefs.delete(key);
   else terrainPrefs.add(key);
-  localStorage.setItem('terrainPrefs', JSON.stringify([...terrainPrefs]));
+  // not persisted across sessions
   document.querySelectorAll('.terrain-chip').forEach(c =>
     c.classList.toggle('active', terrainPrefs.has(c.dataset.terrain))
   );
@@ -2860,7 +2860,7 @@ function applyTerrainFilter() {
 
 function clearTerrainFilter() {
   terrainPrefs.clear();
-  localStorage.setItem('terrainPrefs', '[]');
+  // not persisted
   document.querySelectorAll('.terrain-chip').forEach(c => c.classList.remove('active'));
   applyTerrainFilter();
 }
@@ -2930,12 +2930,8 @@ async function fetchTerrainForResults(results) {
   applyTerrainFilter();
 }
 
-// Restore saved terrain chip states on load
 document.addEventListener('DOMContentLoaded', () => {
-  terrainPrefs.forEach(key => {
-    const chip = document.querySelector(`.terrain-chip[data-terrain="${key}"]`);
-    if (chip) chip.classList.add('active');
-  });
+  // Terrain prefs are not persisted — chips always start unselected
   initEventMode();
 });
 
