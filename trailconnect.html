@@ -1253,6 +1253,15 @@ function pickActivity(val) {
   // Sync preset sliders in case activity changes defaults
   const preset = document.querySelector('input[name="tripPreset"]:checked')?.value || 'quick';
   setPreset(preset);
+  // Cycling: buses/trams don't take bikes — grey out those checkboxes
+  const isCycling = val === 'cycling';
+  document.querySelectorAll('input[name="ptMode"]').forEach(cb => {
+    if (cb.value === 'bus' || cb.value === 'tram') {
+      cb.disabled = isCycling;
+      cb.closest('label')?.style.setProperty('opacity', isCycling ? '0.35' : '1');
+      cb.closest('label')?.style.setProperty('pointer-events', isCycling ? 'none' : '');
+    }
+  });
 }
 document.getElementById('walkToStop').addEventListener('input',   () => updateSlider('walkToStop',   'walkToStopVal'));
 document.getElementById('walkFromStop').addEventListener('input', () => updateSlider('walkFromStop', 'walkFromStopVal'));
@@ -1612,8 +1621,12 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
   const walkToStop   = parseInt(document.getElementById('walkToStop').value);
   const walkFromStop = parseInt(document.getElementById('walkFromStop').value);
   const ptJourney    = parseInt(document.getElementById('ptJourney').value) || 0;
-  const ptModes = getChecked('ptMode');
+  let ptModes = getChecked('ptMode');
   const trailSubtypes = getChecked('trailType');
+  // Cycling: buses and trams don't take bikes — filter them out automatically
+  if (activity === 'cycling') {
+    ptModes = ptModes.filter(m => m !== 'bus' && m !== 'tram');
+  }
   if (!ptModes.length) { alert('Select at least one transport mode.'); return; }
   if (!trailSubtypes.length) { alert('Select at least one trail type.'); return; }
   const btn = document.getElementById('findBtn');
