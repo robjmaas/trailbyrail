@@ -830,26 +830,40 @@ locInput.addEventListener('blur', () => setTimeout(hideAC, 150));
 // ── Curated hiking areas for random suggestion fallback ──────────────────────
 // Used when scatter search returns nothing — we pick a random reachable area.
 const SUGGESTED_DESTINATIONS = [
-  { name: 'Veluwe',            region: 'Netherlands',   lat: 52.03,  lon:  5.82 },
-  { name: 'Ardennes',          region: 'Belgium',        lat: 50.14,  lon:  5.57 },
-  { name: 'Eifel',             region: 'Germany',        lat: 50.36,  lon:  6.57 },
-  { name: 'Black Forest',      region: 'Germany',        lat: 48.00,  lon:  8.17 },
-  { name: 'Harz',              region: 'Germany',        lat: 51.80,  lon: 10.73 },
-  { name: 'Saxon Switzerland', region: 'Germany',        lat: 50.93,  lon: 14.30 },
-  { name: 'Teutoburg Forest',  region: 'Germany',        lat: 51.94,  lon:  8.57 },
-  { name: 'Pfälzerwald',       region: 'Germany',        lat: 49.36,  lon:  7.77 },
-  { name: 'Thuringian Forest', region: 'Germany',        lat: 50.62,  lon: 10.77 },
-  { name: 'Bavarian Alps',     region: 'Germany',        lat: 47.65,  lon: 11.02 },
-  { name: 'Vosges',            region: 'France',         lat: 48.12,  lon:  7.08 },
-  { name: 'Jura',              region: 'France/Switzerland', lat: 46.78, lon: 5.98 },
-  { name: 'Dolomites',         region: 'Italy',          lat: 46.41,  lon: 11.84 },
-  { name: 'Graubünden',        region: 'Switzerland',    lat: 46.85,  lon:  9.53 },
-  { name: 'Peak District',     region: 'England',        lat: 53.35,  lon: -1.83 },
-  { name: 'Lake District',     region: 'England',        lat: 54.45,  lon: -3.09 },
-  { name: 'Snowdonia',         region: 'Wales',          lat: 52.91,  lon: -3.89 },
-  { name: 'Yorkshire Dales',   region: 'England',        lat: 54.20,  lon: -2.19 },
-  { name: 'Bohemian Switzerland', region: 'Czech Republic', lat: 50.88, lon: 14.23 },
-  { name: 'Pyrenees',          region: 'Spain/France',   lat: 42.78,  lon:  1.57 },
+  // ── Coastal ──────────────────────────────────────────────────────────────
+  { name: 'Zandvoort & Kennemerduinen', region: 'Netherlands',  lat: 52.37,  lon:  4.54,  terrain: ['coastal','heath'] },
+  { name: 'Scheveningen & Meijendel',   region: 'Netherlands',  lat: 52.10,  lon:  4.27,  terrain: ['coastal','heath'] },
+  { name: 'Zeeland coast',              region: 'Netherlands',  lat: 51.50,  lon:  3.85,  terrain: ['coastal','water','polder'] },
+  { name: 'Texel',                      region: 'Netherlands',  lat: 53.05,  lon:  4.82,  terrain: ['coastal','heath','water'] },
+  { name: 'Terschelling',               region: 'Netherlands',  lat: 53.40,  lon:  5.22,  terrain: ['coastal','heath','water'] },
+  { name: 'Belgian coast',              region: 'Belgium',      lat: 51.10,  lon:  2.59,  terrain: ['coastal','heath'] },
+  { name: 'Kent coast',                 region: 'England',      lat: 51.13,  lon:  1.30,  terrain: ['coastal','hills'] },
+  { name: 'Sussex coast',               region: 'England',      lat: 50.77,  lon:  0.28,  terrain: ['coastal','hills'] },
+  { name: 'Normandy coast',             region: 'France',       lat: 49.35,  lon: -0.47,  terrain: ['coastal','hills'] },
+  { name: 'North Frisian coast',        region: 'Germany',      lat: 54.70,  lon:  8.85,  terrain: ['coastal','heath','water'] },
+  { name: 'Rügen',                      region: 'Germany',      lat: 54.42,  lon: 13.37,  terrain: ['coastal','forest'] },
+  // ── Forest / Heath ───────────────────────────────────────────────────────
+  { name: 'Veluwe',            region: 'Netherlands',         lat: 52.03,  lon:  5.82,  terrain: ['forest','heath'] },
+  { name: 'Ardennes',          region: 'Belgium',             lat: 50.14,  lon:  5.57,  terrain: ['forest','hills','water'] },
+  { name: 'Eifel',             region: 'Germany',             lat: 50.36,  lon:  6.57,  terrain: ['forest','hills','water'] },
+  { name: 'Teutoburg Forest',  region: 'Germany',             lat: 51.94,  lon:  8.57,  terrain: ['forest','hills'] },
+  { name: 'Harz',              region: 'Germany',             lat: 51.80,  lon: 10.73,  terrain: ['forest','hills','water'] },
+  { name: 'Pfälzerwald',       region: 'Germany',             lat: 49.36,  lon:  7.77,  terrain: ['forest','hills'] },
+  { name: 'Vosges',            region: 'France',              lat: 48.12,  lon:  7.08,  terrain: ['forest','hills'] },
+  { name: 'Black Forest',      region: 'Germany',             lat: 48.00,  lon:  8.17,  terrain: ['forest','hills','water'] },
+  { name: 'Thuringian Forest', region: 'Germany',             lat: 50.62,  lon: 10.77,  terrain: ['forest','hills','water'] },
+  { name: 'Peak District',     region: 'England',             lat: 53.35,  lon: -1.83,  terrain: ['hills','heath','water'] },
+  { name: 'Yorkshire Dales',   region: 'England',             lat: 54.20,  lon: -2.19,  terrain: ['hills','heath','water'] },
+  // ── Hills / Mountains ────────────────────────────────────────────────────
+  { name: 'Saxon Switzerland', region: 'Germany',             lat: 50.93,  lon: 14.30,  terrain: ['hills','forest'] },
+  { name: 'Bohemian Switzerland', region: 'Czech Republic',   lat: 50.88,  lon: 14.23,  terrain: ['hills','forest'] },
+  { name: 'Jura',              region: 'France/Switzerland',  lat: 46.78,  lon:  5.98,  terrain: ['hills','forest','water'] },
+  { name: 'Graubünden',        region: 'Switzerland',         lat: 46.85,  lon:  9.53,  terrain: ['hills','water','forest'] },
+  { name: 'Bavarian Alps',     region: 'Germany',             lat: 47.65,  lon: 11.02,  terrain: ['hills','water','forest'] },
+  { name: 'Dolomites',         region: 'Italy',               lat: 46.41,  lon: 11.84,  terrain: ['hills','water'] },
+  { name: 'Snowdonia',         region: 'Wales',               lat: 52.91,  lon: -3.89,  terrain: ['hills','water','coastal'] },
+  { name: 'Lake District',     region: 'England',             lat: 54.45,  lon: -3.09,  terrain: ['hills','water','coastal'] },
+  { name: 'Pyrenees',          region: 'Spain/France',        lat: 42.78,  lon:  1.57,  terrain: ['hills','water','forest'] },
 ];
 
 async function fetchAC(q) {
@@ -1813,17 +1827,30 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
         // aerial destinations should be within ~1.2× of that (trains aren't straight lines).
         // e.g. half-day 80 km → max ~96 km aerial — excludes Eifel (200+ km) for NL users.
         const maxSuggestDist = Math.max(ptJourney * 1.2, 50000); // 50 km floor for quick preset
-        const nearby = SUGGESTED_DESTINATIONS
+        const inRange = SUGGESTED_DESTINATIONS
           .map(d => ({...d, _d: dist(homeLat, homeLon, d.lat, d.lon)}))
           .filter(d => d._d <= maxSuggestDist)
-          .sort((a, b) => a._d - b._d)
-          .slice(0, 8);
-        // Shuffle the shortlist so we don't always pick the exact same area
-        for (let i = nearby.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [nearby[i], nearby[j]] = [nearby[j], nearby[i]];
-        }
-        const toTry = nearby.slice(0, 3);
+          .sort((a, b) => a._d - b._d);
+
+        // Split into terrain-matching and non-matching groups.
+        // When the user has terrain preferences, try matching destinations first.
+        const terrainMatch = terrainPrefs.size > 0
+          ? inRange.filter(d => (d.terrain || []).some(t => terrainPrefs.has(t)))
+          : [];
+        const terrainOther = terrainPrefs.size > 0
+          ? inRange.filter(d => !(d.terrain || []).some(t => terrainPrefs.has(t)))
+          : inRange;
+
+        // Shuffle each group independently (keeps closest-first bias within each group)
+        const shuffle = arr => {
+          for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+          }
+          return arr;
+        };
+        // Try up to 2 terrain-matching first, then fill remaining from non-matching
+        const toTry = [...shuffle(terrainMatch).slice(0, 2), ...shuffle(terrainOther)].slice(0, 3);
 
         for (const suggestion of toTry) {
           resultsDiv.innerHTML = `<div class="loading">
