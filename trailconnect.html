@@ -2151,7 +2151,7 @@ function renderCard(trail, idx) {
           chips.push(`<span class="jchip jchip-pt">${dep.icon} ${dep.name}</span>`);
         }
         sep();
-        chips.push(`<span class="jchip jchip-pt chain-train-loading" id="chain-train-${idx}">🚂</span>`);
+        chips.push(`<span class="jchip jchip-pt chain-train-loading" id="chain-train-${idx}">🚂 checking…</span>`);
         if (best && dep) {
           sep();
           chips.push(`<span class="jchip jchip-pt">${best.icon} ${best.name}</span>`);
@@ -2990,11 +2990,13 @@ function applyRealLegs(idx, legs) {
   for (const leg of legs) {
     sep();
     if (leg.type === 'walk') {
-      const dist = leg.dist_m >= 100 ? ` ${fmt(leg.dist_m)}` : '';
-      chips.push(`<span class="jchip jchip-walk">🚶${dist} ${leg.mins}min</span>`);
+      const d = leg.dist_m >= 100 ? ` ${fmt(leg.dist_m)}` : '';
+      chips.push(`<span class="jchip jchip-walk">🚶${d} ${leg.mins}min</span>`);
     } else {
-      const linePart = leg.line ? ` <span class="jchip-line">${leg.line}</span>` : '';
-      chips.push(`<span class="jchip jchip-pt">${leg.icon}${linePart} ${leg.mins}min</span>`);
+      const from = leg.from ? `<span class="jchip-line"> ${leg.from}</span>` : '';
+      const to   = leg.to   ? `<span class="jchip-line"> → ${leg.to}</span>` : '';
+      const line = leg.line ? `<span class="jchip-line"> · ${leg.line}</span>` : '';
+      chips.push(`<span class="jchip jchip-pt">${leg.icon}${from}${to}${line} ${leg.mins}min</span>`);
     }
   }
 
