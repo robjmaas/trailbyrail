@@ -1769,6 +1769,7 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
                   <label title="Max time on the trail itself">⏱️ Max trail time <input type="number" id="filterMaxTravel" min="0" step="0.5" placeholder="∞" style="width:55px" oninput="applyFilters()"> h</label>
                   <label><input type="checkbox" id="filterHideCompleted" onchange="applyFilters()"> Hide completed</label>
                 </div>
+                <div id="terrainNotice" style="display:none"></div>
                 <div class="results-grid" id="resultsGrid">
                   ${sugResults.map((t, i) => renderCard(t, i)).join('')}
                 </div>`;
@@ -1846,6 +1847,7 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
               <label title="Max time on the trail itself">⏱️ Max trail time <input type="number" id="filterMaxTravel" min="0" step="0.5" placeholder="∞" style="width:55px" oninput="applyFilters()"> h</label>
               <label><input type="checkbox" id="filterHideCompleted" onchange="applyFilters()"> Hide completed</label>
             </div>
+            <div id="terrainNotice" style="display:none"></div>
             <div class="results-grid" id="resultsGrid">
               ${fbResults.map((t, i) => renderCard(t, i)).join('')}
             </div>`;
@@ -1888,6 +1890,7 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
         <label title="Max time on the trail itself">⏱️ Max trail time <input type="number" id="filterMaxTravel" min="0" step="0.5" placeholder="∞" style="width:55px" oninput="applyFilters()"> h</label>
         <label><input type="checkbox" id="filterHideCompleted" onchange="applyFilters()"> Hide completed</label>
       </div>
+      <div id="terrainNotice" style="display:none"></div>
       <div class="results-grid" id="resultsGrid">
         ${results.map((t, i) => renderCard(t, i)).join('')}
       </div>`;
@@ -2502,22 +2505,66 @@ function toggleTerrain(key) {
 }
 
 function applyTerrainFilter() {
+  const notice = document.getElementById('terrainNotice');
+
   if (!terrainPrefs.size) {
-    // No preference — show everything
+    // No preference — show everything, clear notice
     currentTrails.forEach((_, i) => {
       const card = document.getElementById(`card-${i}`);
-      if (card) card.style.opacity = '';
+      if (card) { card.style.opacity = ''; card.style.display = ''; }
     });
+    if (notice) notice.style.display = 'none';
     return;
   }
+
+  let matchCount = 0;
+  const foundElsewhere = new Set(); // terrain types that DO exist in results
+
   currentTrails.forEach((t, i) => {
     const card = document.getElementById(`card-${i}`);
     if (!card) return;
     const types = t.terrainTypes || [];
+    types.forEach(ty => foundElsewhere.add(ty));
     const match = types.some(type => terrainPrefs.has(type));
-    // Dim non-matching cards rather than hide — terrain data may still be loading
-    card.style.opacity = (types.length === 0 || match) ? '' : '0.35';
+    if (types.length === 0 || match) {
+      card.style.opacity = '';
+      if (match) matchCount++;
+    } else {
+      card.style.opacity = '0.35';
+    }
   });
+
+  // Only show notice once terrain data has actually loaded (at least one card has types)
+  const dataLoaded = currentTrails.some(t => (t.terrainTypes || []).length > 0);
+  if (!notice) return;
+
+  if (dataLoaded && matchCount === 0) {
+    // Build a human-readable list of what WAS found
+    const prefLabels = [...terrainPrefs].map(k => `${TERRAIN_DEFS[k]?.icon} ${TERRAIN_DEFS[k]?.label}`).filter(Boolean).join(', ');
+    const altTypes = [...foundElsewhere].filter(ty => !terrainPrefs.has(ty));
+    const altHtml = altTypes.length
+      ? `<div style="margin-top:.35rem;font-size:.8rem;color:var(--forest-med)">In this area we found: ${altTypes.map(k => `<strong>${TERRAIN_DEFS[k]?.icon} ${TERRAIN_DEFS[k]?.label}</strong>`).join(', ')}</div>`
+      : '';
+    notice.style.display = '';
+    notice.innerHTML = `
+      <div style="background:rgba(232,98,42,.09);border:1px solid rgba(232,98,42,.25);border-radius:12px;padding:.85rem 1rem;margin-bottom:1rem;font-size:.85rem;color:var(--bark)">
+        <strong>No ${prefLabels} results in this area.</strong>
+        ${altHtml}
+        <div style="margin-top:.55rem;display:flex;gap:.5rem;flex-wrap:wrap">
+          <button class="act-btn" style="font-size:.78rem;padding:.4rem .8rem" onclick="clearTerrainFilter()">🗺️ Show all results</button>
+          <button class="act-btn" style="font-size:.78rem;padding:.4rem .8rem" onclick="document.querySelector('.search-card').scrollIntoView({behavior:'smooth'})">🔍 Search elsewhere</button>
+        </div>
+      </div>`;
+  } else {
+    notice.style.display = 'none';
+  }
+}
+
+function clearTerrainFilter() {
+  terrainPrefs.clear();
+  localStorage.setItem('terrainPrefs', '[]');
+  document.querySelectorAll('.terrain-chip').forEach(c => c.classList.remove('active'));
+  applyTerrainFilter();
 }
 
 async function fetchTerrainForResults(results) {
