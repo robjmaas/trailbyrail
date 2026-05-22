@@ -143,6 +143,15 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
 /* Terrain badge on cards */
 .terrain-tags{display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.35rem}
 .terrain-tag{display:inline-flex;align-items:center;gap:.25rem;font-size:.72rem;font-weight:600;padding:.15rem .55rem;border-radius:12px;background:rgba(58,125,82,.1);color:var(--forest-med);border:1px solid rgba(58,125,82,.2)}
+/* ── Event trailhead mode ── */
+.event-banner{background:linear-gradient(135deg,var(--moss) 0%,var(--forest-dark) 100%);color:white;border-radius:20px;padding:1.4rem 1.6rem;margin-bottom:1.25rem;box-shadow:0 8px 32px rgba(58,125,82,.35),0 0 0 1px rgba(255,255,255,.1) inset;animation:fadeIn .5s ease-out both}
+.event-banner-tag{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;opacity:.7;margin-bottom:.4rem}
+.event-banner h2{font-size:1.2rem;font-weight:800;margin:0 0 .35rem;line-height:1.25}
+.event-banner p{font-size:.85rem;opacity:.8;margin:0 0 1rem;line-height:1.5}
+.event-trailhead-card{background:var(--cream);border-radius:18px;padding:1.35rem 1.5rem;border:2px solid var(--moss);box-shadow:0 6px 28px rgba(58,125,82,.15);margin-bottom:1.25rem}
+.event-trailhead-card .event-tc-label{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--moss);margin-bottom:.5rem}
+.event-trailhead-card h3{font-size:1.1rem;font-weight:800;color:var(--forest-dark);margin:0 0 .75rem;line-height:1.3}
+.event-coord{font-size:.78rem;color:var(--bark);opacity:.7;margin-bottom:.9rem}
 .gpx-panel{display:none;margin-top:.75rem;padding:.85rem 1rem;background:var(--cloud);border-radius:12px;border:2px solid var(--moss);animation:fadeIn .2s ease-out}
 .gpx-panel.open{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
 .gpx-panel-label{font-size:.78rem;font-weight:700;color:var(--moss);text-transform:uppercase;letter-spacing:.05em;width:100%;margin-bottom:.1rem}
@@ -492,6 +501,17 @@ details.api-settings[open] summary{margin-bottom:.85rem}
     </div>
   </div>
 
+  <!-- ── Event trailhead banner (shown when URL has ?event= params) ── -->
+  <div id="eventBanner" style="display:none" class="event-banner">
+    <div class="event-banner-tag">🎉 Trail event</div>
+    <h2 id="eventBannerName"></h2>
+    <p id="eventBannerDesc">Enter your starting location below and we'll find the best transit route to the trailhead.</p>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+      <a id="eventMapsLink" class="act-btn" style="background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.4);color:white;font-size:.8rem" target="_blank">🗺️ Open trailhead in Maps</a>
+      <button class="act-btn" style="background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.4);color:white;font-size:.8rem" onclick="clearEventMode()">✕ Exit event mode</button>
+    </div>
+  </div>
+
   <div class="search-card">
     <form class="search-form" id="searchForm">
 
@@ -680,6 +700,7 @@ let searchMode = 'home'; // 'home' | 'destination'
 let destLat, destLon, selectedDestCoords = null;
 let pendingTrailId = null, pendingTrailName = null; // deep-link target
 let shareParamsActive = false; // blocks getLocation() from overwriting shared address
+let eventMode = null; // {name, lat, lon} — set when URL has ?event= params
 let lastPtJourney = 0; // metres — stored so renderCard can use it
 let doneTrails = new Set(JSON.parse(localStorage.getItem('doneTrails') || '[]'));
 let reviewsLoaded = {};
@@ -1474,6 +1495,19 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
 
   btn.disabled = true;
 
+  // ── Event mode: skip trail search, just show trailhead card ──────────────
+  if (eventMode) {
+    try {
+      const coords = await geocode(location);
+      homeLat = coords.lat; homeLon = coords.lon;
+    } catch { btn.disabled = false; return; }
+    resultsDiv.innerHTML = '';
+    btn.disabled = false;
+    await doEventSearch();
+    document.getElementById('results').scrollIntoView({behavior:'smooth', block:'start'});
+    return;
+  }
+
   // ── Search gate (guest limit) ──────────────────────────────────────────────
   if (!currentUser) {
     const tr = await fetch('/api/track-search', {method:'POST'}).then(r=>r.json()).catch(()=>null);
@@ -2143,6 +2177,7 @@ function renderCard(trail, idx) {
       <button class="act-btn" onclick="toggleGpxPanel(${idx})">🔍 Find GPX</button>
       ${trail.oda_url ? `<a class="act-btn" href="${trail.oda_url}" target="_blank">🌐 Outdooractive</a>` : ''}
       <button class="act-btn" id="shareBtn-${idx}" onclick="shareTrail(${idx})">🔗 Share</button>
+      <button class="act-btn" id="eventBtn-${idx}" onclick="shareEventLink(${idx})" title="Create a link for event participants — they enter their own location to get directions">📅 Event link</button>
       <button class="act-btn${isDone ? ' done-active' : ''}" id="doneBtn-${idx}" onclick="toggleDone(${idx})">${isDone ? '✅ Done' : '🏅 Done'}</button>
       <button class="act-btn" id="reviewBtn-${idx}" onclick="toggleReviews(${idx})">💬 Reviews</button>
     </div>
@@ -2195,6 +2230,92 @@ function renderCard(trail, idx) {
 
 // ── Loop generation ───────────────────────────────────────────────────────────
 const loopResults = {};
+
+// ── Event trailhead mode ──────────────────────────────────────────────────────
+
+function initEventMode() {
+  const p = new URLSearchParams(location.search);
+  const name = p.get('event');
+  const lat  = parseFloat(p.get('lat'));
+  const lon  = parseFloat(p.get('lon'));
+  if (!name || isNaN(lat) || isNaN(lon)) return;
+
+  eventMode = {name, lat, lon};
+  document.getElementById('eventBannerName').textContent = name;
+  document.getElementById('eventBanner').style.display = '';
+  document.getElementById('eventMapsLink').href =
+    `https://www.google.com/maps?q=${lat},${lon}`;
+
+  // Hide the preset / destination / terrain blocks — they're irrelevant in event mode
+  document.getElementById('destinationGroup').style.display = 'none';
+}
+
+function clearEventMode() {
+  eventMode = null;
+  document.getElementById('eventBanner').style.display = 'none';
+  document.getElementById('destinationGroup').style.display = '';
+  // Strip event params from URL cleanly
+  const url = new URL(location.href);
+  url.searchParams.delete('event'); url.searchParams.delete('lat'); url.searchParams.delete('lon');
+  history.replaceState({}, '', url);
+}
+
+async function doEventSearch() {
+  const resultsDiv = document.getElementById('results');
+  const {name, lat, lon} = eventMode;
+
+  resultsDiv.innerHTML = `
+    <div class="event-trailhead-card">
+      <div class="event-tc-label">📅 Event trailhead</div>
+      <h3>${name}</h3>
+      <div class="event-coord">${lat.toFixed(5)}, ${lon.toFixed(5)}</div>
+      <div id="event-transit-badge" style="margin-bottom:.85rem">
+        <span class="transit-spinner">🔄 Checking journey…</span>
+      </div>
+      <div id="event-legs" style="margin-bottom:.9rem"></div>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+        <a class="act-btn primary"
+           href="https://www.google.com/maps/dir/?api=1&origin=${homeLat},${homeLon}&destination=${lat},${lon}&travelmode=transit"
+           target="_blank">🚌 Plan journey</a>
+        <a class="act-btn"
+           href="https://www.google.com/maps?q=${lat},${lon}"
+           target="_blank">📍 Trailhead on map</a>
+      </div>
+    </div>`;
+
+  // Fetch real transit time
+  const d = await fetchOneTransitTime(lat, lon);
+  const badge = document.getElementById('event-transit-badge');
+  const legsEl = document.getElementById('event-legs');
+  if (badge) {
+    if (d?.duration_mins > 0) {
+      const walkMpm = 5000 / 60;
+      const walkToDep   = d.walk_to_dep_m   > 0 ? Math.round(d.walk_to_dep_m   / walkMpm) : 0;
+      const walkToTrail = d.walk_from_arr_m > 0 ? Math.round(d.walk_from_arr_m / walkMpm) : 0;
+      const total = d.duration_mins + walkToDep + walkToTrail;
+      const h = Math.floor(total / 60), m = total % 60;
+      const label = h > 0 ? `${h}h${m > 0 ? ` ${m}min` : ''}` : `${m}min`;
+      badge.innerHTML = `<span class="transit-real" title="Door-to-door including walking">🚶→🚌 ${label}</span><span style="font-size:.7rem;color:var(--moss);opacity:.75;margin-left:.3rem">door-to-door</span>`;
+      if (d.legs?.length && legsEl) applyRealLegs('event', d.legs);
+    } else {
+      badge.innerHTML = `<span style="font-size:.82rem;opacity:.6">Journey time unavailable</span>`;
+    }
+  }
+}
+
+async function shareEventLink(idx) {
+  const t   = currentTrails[idx];
+  const btn = document.getElementById(`eventBtn-${idx}`);
+  const orig = btn.textContent;
+  const url = `${location.origin}${location.pathname}?event=${encodeURIComponent(t.name)}&lat=${t.lat}&lon=${t.lon}`;
+  try {
+    await navigator.clipboard.writeText(url);
+    btn.textContent = '✅ Copied!';
+    setTimeout(() => { btn.textContent = orig; }, 2500);
+  } catch {
+    prompt('Copy this event link:', url);
+  }
+}
 
 async function buildShareUrl(params) {
   try {
@@ -2638,6 +2759,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const chip = document.querySelector(`.terrain-chip[data-terrain="${key}"]`);
     if (chip) chip.classList.add('active');
   });
+  initEventMode();
 });
 
 // ── Real transit times via transport.rest (DB HAFAS, no API key) ─────────────
