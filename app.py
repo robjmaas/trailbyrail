@@ -611,13 +611,26 @@ def api_graphhopper():
             ]
         }
 
-    r = requests.post(
-        f'https://graphhopper.com/api/1/route?key={key}',
-        json=body,
-        headers={**HEADERS, 'Content-Type': 'application/json'},
-        timeout=25,
-    )
-    r.raise_for_status()
+    try:
+        r = requests.post(
+            f'https://graphhopper.com/api/1/route?key={key}',
+            json=body,
+            headers={**HEADERS, 'Content-Type': 'application/json'},
+            timeout=25,
+        )
+    except requests.exceptions.Timeout:
+        return jsonify({'error': 'GraphHopper request timed out'}), 504
+    except requests.exceptions.RequestException as e:
+        return jsonify({'error': f'GraphHopper request failed: {e}'}), 502
+
+    if not r.ok:
+        # Surface the actual GH error message to the client
+        try:
+            gh_err = r.json().get('message', r.text[:200])
+        except Exception:
+            gh_err = r.text[:200]
+        return jsonify({'error': gh_err}), r.status_code
+
     return Response(r.content, content_type='application/json')
 
 @app.route('/api/transit-time', methods=['POST'])
