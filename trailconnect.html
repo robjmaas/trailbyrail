@@ -418,7 +418,7 @@ details.api-settings[open] summary{margin-bottom:.85rem}
           <div class="guide-step-icon">⚡</div>
           <div class="guide-step-body">
             <h3>Pick a trip type</h3>
-            <p><b>Quick escape</b> finds trails walkable or cyclable from home with no train needed. <b>Half-day</b> searches within about 1–2 hours by train. <b>Full day</b> goes further. The right choice for most day trips is Half-day.</p>
+            <p><b>From home</b> finds trails reachable on foot, by bike or local bus — no train needed. <b>Half-day trip</b> searches 1–2 hrs by train, back same day. <b>Full day / Overnight</b> goes further — pack a bag.</p>
           </div>
         </div>
 
@@ -532,21 +532,21 @@ details.api-settings[open] summary{margin-bottom:.85rem}
         <div class="preset-chips">
           <label class="preset-chip">
             <input type="radio" name="tripPreset" value="quick" checked onchange="setPreset('quick')">
-            <span class="preset-chip-icon">⚡</span>
-            <span class="preset-chip-label">Quick escape</span>
-            <span class="preset-chip-sub">Walk or cycle, no train</span>
+            <span class="preset-chip-icon">🏠</span>
+            <span class="preset-chip-label">From home</span>
+            <span class="preset-chip-sub">Walk · cycle · bus, no train</span>
           </label>
           <label class="preset-chip">
             <input type="radio" name="tripPreset" value="halfday" onchange="setPreset('halfday')">
-            <span class="preset-chip-icon">🌄</span>
-            <span class="preset-chip-label">Half-day</span>
-            <span class="preset-chip-sub">Train + wilder trails</span>
+            <span class="preset-chip-icon">🚂</span>
+            <span class="preset-chip-label">Half-day trip</span>
+            <span class="preset-chip-sub">Short train ride, back same day</span>
           </label>
           <label class="preset-chip">
             <input type="radio" name="tripPreset" value="fullday" onchange="setPreset('fullday')">
-            <span class="preset-chip-icon">🏕️</span>
-            <span class="preset-chip-label">Full day</span>
-            <span class="preset-chip-sub">Go far, stay longer</span>
+            <span class="preset-chip-icon">⛺</span>
+            <span class="preset-chip-label">Full day / Overnight</span>
+            <span class="preset-chip-sub">Long journey, stay the night</span>
           </label>
         </div>
       </div>
@@ -554,7 +554,7 @@ details.api-settings[open] summary{margin-bottom:.85rem}
       <!-- ── Optional destination ── -->
       <div class="input-group" id="destinationGroup">
         <label for="destination" class="dest-opt-label">🗺️ Heading somewhere specific? <span style="font-weight:300">(optional)</span></label>
-        <div id="destHint" style="display:none;font-size:.78rem;color:var(--sunrise);background:rgba(232,98,42,.09);border-radius:8px;padding:.35rem .7rem;margin-bottom:.35rem">💡 For best results with Half-day / Full-day, name a destination — e.g. <em>Veluwe</em>, <em>Black Forest</em>, <em>Snowdonia</em></div>
+        <div id="destHint" style="display:none;font-size:.78rem;color:var(--sunrise);background:rgba(232,98,42,.09);border-radius:8px;padding:.35rem .7rem;margin-bottom:.35rem">💡 For best results with Half-day / Overnight, name a destination — e.g. <em>Veluwe</em>, <em>Black Forest</em>, <em>Snowdonia</em></div>
         <div class="ac-wrap">
           <input type="text" id="destination" placeholder="e.g. Black Forest, Veluwe, Snowdonia, Dolomites…" autocomplete="off">
           <div class="ac-dropdown" id="acDropdownDest"></div>
