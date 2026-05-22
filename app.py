@@ -559,79 +559,67 @@ def api_outdooractive():
 
 @app.route('/api/graphhopper', methods=['POST'])
 def api_graphhopper():
-    key = cfg('GRAPHHOPPER_KEY')
+    """Round-trip route generation via OpenRouteService (free, no flexible-mode needed).
+    Returns a GH-compatible shape: { paths: [{ distance, points: { coordinates } }] }
+    """
+    key = cfg('ORS_KEY')
     if not key:
-        return jsonify({'error': 'GRAPHHOPPER_KEY not configured'}), 503
-    data    = request.json
-    profile = data.get('vehicle', 'hike')   # hike > foot: prefers designated trails
-    is_foot  = profile in ('foot', 'hike')
-    is_cycle = profile in ('bike', 'mtb', 'racingbike')
+        return jsonify({'error': 'ORS_KEY not configured'}), 503
+
+    data = request.json
+    vehicle = data.get('vehicle', 'hike')
+
+    # ORS profile mapping
+    ORS_PROFILE = {
+        'foot':       'foot-hiking',
+        'hike':       'foot-hiking',
+        'bike':       'cycling-regular',
+        'mtb':        'cycling-mountain',
+        'racingbike': 'cycling-road',
+    }
+    profile = ORS_PROFILE.get(vehicle, 'foot-hiking')
 
     body = {
-        'points':         [[data['lon'], data['lat']]],  # GH expects [lon, lat]
-        'profile':        profile,
-        'algorithm':      'round_trip',
-        'round_trip':     {'distance': int(data.get('distance', 10000)), 'seed': 0},
-        'locale':         'en',
-        'points_encoded': False,
-        'ch.disable':     True,   # required for custom_model
+        'coordinates': [[data['lon'], data['lat']]],
+        'options': {
+            'round_trip': {
+                'length': int(data.get('distance', 10000)),
+                'points': 3,
+                'seed':   0,
+            }
+        },
     }
-
-    # For foot/hike: strongly prefer tracks, paths and unpaved surfaces
-    if is_foot:
-        body['custom_model'] = {
-            'priority': [
-                {'if': 'road_class == TRACK',    'multiply_by': 3.0},
-                {'if': 'road_class == FOOTWAY',  'multiply_by': 2.5},
-                {'if': 'road_class == BRIDLEWAY','multiply_by': 2.5},
-                {'if': 'road_class == PATH',     'multiply_by': 3.0},
-                {'if': 'road_class == RESIDENTIAL || road_class == SERVICE || road_class == UNCLASSIFIED',
-                 'multiply_by': 0.5},
-                {'if': 'road_class == TERTIARY', 'multiply_by': 0.3},
-                {'if': 'road_class == SECONDARY','multiply_by': 0.15},
-                {'if': 'road_class == PRIMARY || road_class == TRUNK || road_class == MOTORWAY',
-                 'multiply_by': 0.02},
-            ]
-        }
-
-    # For cycling: strongly prefer cycleways, tracks and paths over roads
-    if is_cycle:
-        body['custom_model'] = {
-            'priority': [
-                {'if': 'road_class == CYCLEWAY',  'multiply_by': 3.0},
-                {'if': 'road_class == TRACK',     'multiply_by': 2.5},
-                {'if': 'road_class == PATH',      'multiply_by': 2.0},
-                {'if': 'road_class == BRIDLEWAY', 'multiply_by': 1.8},
-                {'if': 'road_class == RESIDENTIAL || road_class == SERVICE || road_class == UNCLASSIFIED',
-                 'multiply_by': 0.5},
-                {'if': 'road_class == TERTIARY',  'multiply_by': 0.4},
-                {'if': 'road_class == SECONDARY', 'multiply_by': 0.2},
-                {'if': 'road_class == PRIMARY || road_class == TRUNK || road_class == MOTORWAY',
-                 'multiply_by': 0.05},
-            ]
-        }
 
     try:
         r = requests.post(
-            f'https://graphhopper.com/api/1/route?key={key}',
+            f'https://api.openrouteservice.org/v2/directions/{profile}/geojson',
             json=body,
-            headers={**HEADERS, 'Content-Type': 'application/json'},
+            headers={**HEADERS, 'Content-Type': 'application/json',
+                     'Authorization': key},
             timeout=25,
         )
     except requests.exceptions.Timeout:
-        return jsonify({'error': 'GraphHopper request timed out'}), 504
+        return jsonify({'error': 'Routing request timed out'}), 504
     except requests.exceptions.RequestException as e:
-        return jsonify({'error': f'GraphHopper request failed: {e}'}), 502
+        return jsonify({'error': f'Routing request failed: {e}'}), 502
 
     if not r.ok:
-        # Surface the actual GH error message to the client
         try:
-            gh_err = r.json().get('message', r.text[:200])
+            err = r.json()
+            msg = err.get('error', {}).get('message') or err.get('message') or r.text[:200]
         except Exception:
-            gh_err = r.text[:200]
-        return jsonify({'error': gh_err}), r.status_code
+            msg = r.text[:200]
+        return jsonify({'error': msg}), r.status_code
 
-    return Response(r.content, content_type='application/json')
+    try:
+        feat = r.json()['features'][0]
+        coords   = feat['geometry']['coordinates']       # [[lon,lat], ...]
+        distance = feat['properties']['summary']['distance']  # metres
+    except (KeyError, IndexError) as e:
+        return jsonify({'error': f'Unexpected ORS response: {e}'}), 502
+
+    # Return GH-compatible shape so the frontend needs no changes
+    return jsonify({'paths': [{'distance': distance, 'points': {'coordinates': coords}}]})
 
 @app.route('/api/transit-time', methods=['POST'])
 def api_transit_time():
