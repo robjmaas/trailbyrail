@@ -101,8 +101,8 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
 .jtransit{margin:.12rem 0 .12rem 1.4rem;padding:.2rem .65rem;background:var(--moss);color:white;border-radius:20px;display:inline-block;font-size:.75rem;font-weight:700;line-height:1.4}
 .jwalk{margin:.1rem 0 .1rem 1.4rem;font-size:.75rem;color:var(--forest-med);font-weight:600}
 .jtransit-loading{opacity:.6;animation:trainPulse 1.4s ease-in-out infinite}
-.jtransit-retry{margin:.12rem 0 .12rem 1.4rem;padding:.18rem .55rem;background:transparent;color:var(--forest-med);border:1.5px dashed var(--forest-med);border-radius:20px;display:inline-flex;align-items:center;gap:.3rem;font-size:.74rem;font-weight:600;cursor:pointer;line-height:1.4;opacity:.75;font-family:inherit;-webkit-appearance:none;appearance:none}
-.jtransit-retry:hover,.jtransit-retry:active{opacity:1;border-color:var(--moss);color:var(--moss)}
+.transit-retry-btn{background:transparent;color:var(--forest-med);border:1.5px dashed var(--forest-med);border-radius:20px;padding:.2rem .65rem;font-size:.74rem;font-weight:600;cursor:pointer;font-family:inherit;-webkit-appearance:none;appearance:none;opacity:.8}
+.transit-retry-btn:hover,.transit-retry-btn:active{opacity:1;border-color:var(--moss);color:var(--moss)}
 /* Stops */
 .stops-section{margin-top:1.25rem}
 .stops-title{font-size:.78rem;font-weight:700;color:var(--moss);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.65rem}
@@ -2936,22 +2936,28 @@ async function fetchTransitTimes(results) {
 }
 
 function _showTransitRetry(idx) {
+  // Journey chain: stop the loading animation, leave the static stops visible
   const ct = document.getElementById(`chain-train-${idx}`);
-  if (!ct) return;
-  // Replace with a real <button> — inline onclick is the most reliable
-  // cross-browser approach (avoids .onclick property being lost on mobile
-  // after DOM rearrangement by resortByJourneyTime)
-  ct.outerHTML = `<button class="jtransit-retry" id="chain-train-${idx}" onclick="retryTransit(${idx})">🚂 Tap to retry</button>`;
+  if (ct) {
+    ct.classList.remove('jtransit-loading');
+    ct.textContent = '🚂';
+  }
+  // Duration badge: replace spinner with a small retry button
+  const el = document.getElementById(`transit-${idx}`);
+  if (el) {
+    el.innerHTML = `<button class="transit-retry-btn" onclick="retryTransit(${idx})">↻ retry journey</button>`;
+  }
 }
 
 async function retryTransit(idx) {
   const trail = currentTrails[idx];
   if (!trail) return;
 
-  // Swap button back to loading pill
+  // Restore loading state
   const ct = document.getElementById(`chain-train-${idx}`);
   if (ct) {
-    ct.outerHTML = `<div class="jtransit jtransit-loading" id="chain-train-${idx}">🚂 checking route…</div>`;
+    ct.className = 'jtransit jtransit-loading';
+    ct.textContent = '🚂 checking route…';
   }
   const el = document.getElementById(`transit-${idx}`);
   if (el) el.innerHTML = `<span style="display:inline-block;width:12px;height:12px;border-radius:50%;border:2px solid var(--moss);border-top-color:transparent;animation:spin .8s linear infinite"></span>`;
@@ -2967,7 +2973,6 @@ async function retryTransit(idx) {
   if (d) {
     _applyTransitResult(idx, d, currentTrails);
   } else {
-    if (el) el.innerHTML = '';
     _showTransitRetry(idx);
   }
 }
