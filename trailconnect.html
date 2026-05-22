@@ -494,6 +494,32 @@ details.api-settings[open] summary{margin-bottom:.85rem}
 
   <div class="search-card">
     <form class="search-form" id="searchForm">
+
+      <!-- ── Trip presets — first question ── -->
+      <div class="input-group">
+        <label style="font-size:.78rem;opacity:.7;font-weight:500;text-transform:none;letter-spacing:.03em">How far do you want to go?</label>
+        <div class="preset-chips">
+          <label class="preset-chip">
+            <input type="radio" name="tripPreset" value="quick" checked onchange="setPreset('quick')">
+            <span class="preset-chip-icon">🏠</span>
+            <span class="preset-chip-label">From home</span>
+            <span class="preset-chip-sub">Walk · cycle · local transit</span>
+          </label>
+          <label class="preset-chip">
+            <input type="radio" name="tripPreset" value="halfday" onchange="setPreset('halfday')">
+            <span class="preset-chip-icon">🚂</span>
+            <span class="preset-chip-label">Half-day trip</span>
+            <span class="preset-chip-sub">Short train ride, back same day</span>
+          </label>
+          <label class="preset-chip">
+            <input type="radio" name="tripPreset" value="fullday" onchange="setPreset('fullday')">
+            <span class="preset-chip-icon">⛺</span>
+            <span class="preset-chip-label">Full day / Overnight</span>
+            <span class="preset-chip-sub">Long journey, stay the night</span>
+          </label>
+        </div>
+      </div>
+
       <div class="input-group">
         <label for="location">📍 Where are you starting from?</label>
         <div class="location-row">
@@ -551,31 +577,6 @@ details.api-settings[open] summary{margin-bottom:.85rem}
           <button type="button" class="terrain-chip" data-terrain="water"   onclick="toggleTerrain('water')">💧 Lakes & rivers</button>
           <button type="button" class="terrain-chip" data-terrain="polder"  onclick="toggleTerrain('polder')">🌿 Polder & flat</button>
           <button type="button" class="terrain-chip" data-terrain="urban"   onclick="toggleTerrain('urban')">🏙️ City & parks</button>
-        </div>
-      </div>
-
-      <!-- ── Trip presets ── -->
-      <div class="input-group">
-        <label style="font-size:.78rem;opacity:.7;font-weight:500;text-transform:none;letter-spacing:.03em">How far do you want to go?</label>
-        <div class="preset-chips">
-          <label class="preset-chip">
-            <input type="radio" name="tripPreset" value="quick" checked onchange="setPreset('quick')">
-            <span class="preset-chip-icon">🏠</span>
-            <span class="preset-chip-label">From home</span>
-            <span class="preset-chip-sub">Walk · cycle · local transit</span>
-          </label>
-          <label class="preset-chip">
-            <input type="radio" name="tripPreset" value="halfday" onchange="setPreset('halfday')">
-            <span class="preset-chip-icon">🚂</span>
-            <span class="preset-chip-label">Half-day trip</span>
-            <span class="preset-chip-sub">Short train ride, back same day</span>
-          </label>
-          <label class="preset-chip">
-            <input type="radio" name="tripPreset" value="fullday" onchange="setPreset('fullday')">
-            <span class="preset-chip-icon">⛺</span>
-            <span class="preset-chip-label">Full day / Overnight</span>
-            <span class="preset-chip-sub">Long journey, stay the night</span>
-          </label>
         </div>
       </div>
 
