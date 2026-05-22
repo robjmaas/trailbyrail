@@ -2932,24 +2932,21 @@ async function fetchOneTransitTime(destLat, destLon) {
   const cached = _lsTransitGet(cKey);
   if (cached) return cached;
 
-  // 2. Call backend — auto-retry once after 2s on failure
-  for (let attempt = 0; attempt < 2; attempt++) {
-    if (attempt > 0) await new Promise(res => setTimeout(res, 2000));
-    try {
-      const ctrl = new AbortController();
-      const tid = setTimeout(() => ctrl.abort(), 28000);
-      const r = await fetch('/api/transit-time', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({origin_lat: oLat, origin_lon: oLon, dest_lat: dLat, dest_lon: dLon}),
-        signal: ctrl.signal,
-      });
-      clearTimeout(tid);
-      if (r.ok) {
-        const d = await r.json();
-        if (d?.duration_mins > 0) { _lsTransitSet(cKey, d); return d; }
-      }
-    } catch { /* network error or timeout — will retry */ }
-  }
+  // 2. Call backend (25s timeout — Transitous is usually fast or not responding)
+  try {
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), 25000);
+    const r = await fetch('/api/transit-time', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({origin_lat: oLat, origin_lon: oLon, dest_lat: dLat, dest_lon: dLon}),
+      signal: ctrl.signal,
+    });
+    clearTimeout(tid);
+    if (r.ok) {
+      const d = await r.json();
+      if (d?.duration_mins > 0) { _lsTransitSet(cKey, d); return d; }
+    }
+  } catch { /* network error or timeout */ }
 
   return null;
 }
@@ -2962,34 +2959,31 @@ async function fetchTransitTimes(results) {
 
   const limit = Math.min(results.length, 8);
 
-  // Fire all requests in parallel — each has its own 30s timeout.
-  // Sequential fetches caused Transitous to rate-limit/timeout cards 1-7.
-  const fetches = results.slice(0, limit).map((t, i) =>
-    fetchOneTransitTime(t.lat, t.lon)
-      .then(d => ({ i, d }))
-      .catch(() => ({ i, d: null }))
-  );
-
-  const settled = await Promise.allSettled(fetches);
-
-  settled.forEach(res => {
-    const { i, d } = res.status === 'fulfilled' ? res.value : { i: null, d: null };
-    if (i == null) return;
-    if (d) {
-      _applyTransitResult(i, d, results);
-    } else {
-      const el = document.getElementById(`transit-${i}`);
-      if (el) el.innerHTML = '';
-      _showTransitRetry(i);
-    }
-  });
-
-  // Clear spinners on cards beyond the fetch limit
+  // Clear spinners on cards beyond the fetch limit immediately
   for (let i = limit; i < results.length; i++) {
     const el = document.getElementById(`transit-${i}`); if (el) el.innerHTML = '';
   }
 
-  // Re-sort cards by real total journey time now that we have accurate data
+  // Fire all requests in parallel. Apply each result IMMEDIATELY as it resolves
+  // so fast cards fill in right away instead of waiting for the slowest one.
+  // After all settle, re-sort cards by real journey time.
+  const fetches = results.slice(0, limit).map((t, i) =>
+    fetchOneTransitTime(t.lat, t.lon).then(d => {
+      if (d) {
+        _applyTransitResult(i, d, results);
+      } else {
+        const el = document.getElementById(`transit-${i}`);
+        if (el) el.innerHTML = '';
+        _showTransitRetry(i);
+      }
+    }).catch(() => {
+      const el = document.getElementById(`transit-${i}`);
+      if (el) el.innerHTML = '';
+      _showTransitRetry(i);
+    })
+  );
+
+  await Promise.allSettled(fetches);
   resortByJourneyTime();
 }
 
