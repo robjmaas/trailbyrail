@@ -1767,10 +1767,10 @@ document.getElementById('searchForm').addEventListener('submit', async e => {
         noBody  = `No trails with a nearby stop were found within ${fmt(destSearchRadius)} of that area. Try a more specific place name — for example "Freudenstadt" instead of "Black Forest" — or increase the <strong>Walk from stop to trail</strong> radius.`;
       } else if (ptJourney > 0) {
         // ── Scatter found nothing → try random reachable suggested destinations ─
-        // Sort by aerial distance, then shuffle the closest 8 so results feel
-        // random while still favouring reachable areas. Hard cap at 500km so
-        // we don't suggest the Dolomites to someone doing a 10-min Quick escape.
-        const maxSuggestDist = Math.max(ptJourney * 3, 150000); // at least 150km
+        // Aerial distance cap: ptJourney is the expected train-route distance, so
+        // aerial destinations should be within ~1.2× of that (trains aren't straight lines).
+        // e.g. half-day 80 km → max ~96 km aerial — excludes Eifel (200+ km) for NL users.
+        const maxSuggestDist = Math.max(ptJourney * 1.2, 50000); // 50 km floor for quick preset
         const nearby = SUGGESTED_DESTINATIONS
           .map(d => ({...d, _d: dist(homeLat, homeLon, d.lat, d.lon)}))
           .filter(d => d._d <= maxSuggestDist)
@@ -2961,7 +2961,8 @@ async function fetchOneTransitTime(destLat, destLon) {
     const walkFromArrM = _haversineM(dLat, dLon, toStop.lat,   toStop.lon);
     const dep = _nextWeekday9am();
 
-    const jUrl = `${HAFAS_BASE}/journeys?from=${encodeURIComponent(fromStop.id)}&to=${encodeURIComponent(toStop.id)}&departure=${encodeURIComponent(dep)}&results=1&stopovers=false&remarks=false`;
+    // transfers=1 → prefer direct or single-change routes; HAFAS falls back automatically if none exist
+    const jUrl = `${HAFAS_BASE}/journeys?from=${encodeURIComponent(fromStop.id)}&to=${encodeURIComponent(toStop.id)}&departure=${encodeURIComponent(dep)}&results=1&stopovers=false&remarks=false&transfers=1`;
     const jr = await fetch(jUrl, {signal: ctrl.signal});
     clearTimeout(tid);
     if (!jr.ok) return null;
