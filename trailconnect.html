@@ -2144,29 +2144,27 @@ function renderCard(trail, idx) {
   const originLat = homeLat || (isDestMode ? destLat : null);
   const originLon = homeLon || (isDestMode ? destLon : null);
 
-  // ── Direct walk/cycle option (local mode only) ───────────────────────────
-  // When the trail is reachable on foot or by bike without transit, show it
-  // as an extra option alongside the bus/tram stop suggestion.
+  // ── Direct walk / cycle options (local mode only) ────────────────────────
+  // Show as alternatives to the bus/tram stop suggestion.
   const isLocalMode = !isDestMode && lastPtJourney === 0;
   const isCycling   = trail.type === 'cycling';
   let directPill = '';
   if (isLocalMode && homeLat && homeLon) {
-    const straightM = dist(homeLat, homeLon, trail.lat, trail.lon);
-    const routedM   = straightM * 1.3;         // ~30% routing overhead
-    const walkMpm   = 5000 / 60;               // 5 km/h
-    const cycleMpm  = 15000 / 60;              // 15 km/h
-    const walkMins  = Math.round(routedM / walkMpm);
-    const cycleMins = Math.round(routedM / cycleMpm);
-    const walkUrl   = `https://www.google.com/maps/dir/?api=1&origin=${homeLat},${homeLon}&destination=${trail.lat},${trail.lon}&travelmode=walking`;
-    const cycleUrl  = `https://www.google.com/maps/dir/?api=1&origin=${homeLat},${homeLon}&destination=${trail.lat},${trail.lon}&travelmode=bicycling`;
-    if (isCycling && routedM <= 25000) {
-      directPill = `<a class="direct-option" href="${cycleUrl}" target="_blank">🚴 ${cycleMins}min cycle · ${(routedM/1000).toFixed(1)}km</a>`;
-    } else if (!isCycling && routedM <= 6000) {
-      directPill = `<a class="direct-option" href="${walkUrl}" target="_blank">🚶 ${walkMins}min walk · ${(routedM/1000).toFixed(1)}km</a>`;
-    } else if (isCycling && routedM <= 6000) {
-      // Close enough to walk even on a cycling search
-      directPill = `<a class="direct-option" href="${walkUrl}" target="_blank">🚶 ${walkMins}min walk · ${(routedM/1000).toFixed(1)}km</a>`;
-    }
+    const straightM  = dist(homeLat, homeLon, trail.lat, trail.lon);
+    const routedM    = straightM * 1.3;          // ~30% routing overhead
+    const walkMpm    = 5000  / 60;               // 5 km/h
+    const cycleMpm   = 15000 / 60;               // 15 km/h
+    const walkMins   = Math.round(routedM / walkMpm);
+    const cycleMins  = Math.round(routedM / cycleMpm);
+    const km         = (routedM / 1000).toFixed(1);
+    const walkUrl    = `https://www.google.com/maps/dir/?api=1&origin=${homeLat},${homeLon}&destination=${trail.lat},${trail.lon}&travelmode=walking`;
+    const cycleUrl   = `https://www.google.com/maps/dir/?api=1&origin=${homeLat},${homeLon}&destination=${trail.lat},${trail.lon}&travelmode=bicycling`;
+    const cycleLimit = isCycling ? 25000 : 12000;  // cycling trails: 25km; others: 12km
+
+    const pills = [];
+    if (routedM <= 6000)      pills.push(`<a class="direct-option" href="${walkUrl}"  target="_blank">🚶 ${walkMins}min walk · ${km}km</a>`);
+    if (routedM <= cycleLimit) pills.push(`<a class="direct-option" href="${cycleUrl}" target="_blank">🚴 ${cycleMins}min cycle · ${km}km</a>`);
+    directPill = pills.join('');
   }
 
   const stopItems = trail.stops.map((s, si) => `
@@ -2239,6 +2237,15 @@ function renderCard(trail, idx) {
 
     <div class="action-row">
       <a class="act-btn primary" href="${transitUrl}" target="_blank">🚌 Plan journey</a>
+      ${(() => {
+        if (!isLocalMode || !homeLat || !homeLon) return '';
+        const straightM = dist(homeLat, homeLon, trail.lat, trail.lon);
+        const routedM   = straightM * 1.3;
+        const cycleLimit = isCycling ? 25000 : 12000;
+        if (routedM > cycleLimit) return '';
+        const cycleUrl = `https://www.google.com/maps/dir/?api=1&origin=${homeLat},${homeLon}&destination=${trail.lat},${trail.lon}&travelmode=bicycling`;
+        return `<a class="act-btn" href="${cycleUrl}" target="_blank">🚴 Cycle there</a>`;
+      })()}
       <button class="act-btn" onclick="toggleLoopPanel(${idx})">🔁 Loop</button>
       <a class="act-btn" href="${trailUrl}" target="_blank">🗺️ Map</a>
       <a class="act-btn" href="${legUrl}" target="_blank">🥾 Stop → Trail</a>
