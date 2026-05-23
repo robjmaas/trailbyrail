@@ -705,6 +705,7 @@ def api_transit_time():
     if payload is None:
         return jsonify({'error': f'Routing unavailable: {last_err}'}), 502
 
+    try:
         itineraries = payload.get('itineraries', [])
         if not itineraries:
             return jsonify({'error': last_err or 'No journey found'}), 404
