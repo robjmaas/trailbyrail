@@ -2988,15 +2988,28 @@ async function fetchTransitTimes(results) {
 }
 
 function _showTransitRetry(idx) {
-  // Journey chain: stop the loading animation, leave the static stops visible
+  // Journey chain: stop the loading animation, leave static stops visible
   const ct = document.getElementById(`chain-train-${idx}`);
   if (ct) {
     ct.classList.remove('jtransit-loading');
     ct.textContent = '🚂';
   }
-  // Duration badge: replace spinner with a small retry button
+
+  // Duration badge: show static estimate (already computed at search time)
+  // so the card is still useful even when real-time data is unavailable
   const el = document.getElementById(`transit-${idx}`);
-  if (el) {
+  if (!el) return;
+
+  const trail = currentTrails[idx];
+  const mins  = trail?.journeyMins;
+  if (mins && mins > 0) {
+    const h = Math.floor(mins / 60), m = mins % 60;
+    const label = h > 0 ? `${h}h${m > 0 ? ` ${m}min` : ''}` : `${m}min`;
+    el.innerHTML = `
+      <span class="transit-real" title="Estimated — live data unavailable">🚶→🚌 ~${label}</span>
+      <span style="font-size:.68rem;color:var(--forest-med);opacity:.6">est.</span>
+      <button class="transit-retry-btn" onclick="retryTransit(${idx})" title="Retry live journey">↻</button>`;
+  } else {
     el.innerHTML = `<button class="transit-retry-btn" onclick="retryTransit(${idx})">↻ retry journey</button>`;
   }
 }

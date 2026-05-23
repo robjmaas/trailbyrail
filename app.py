@@ -677,24 +677,37 @@ def api_transit_time():
         if not s: return None
         return datetime.fromisoformat(s.replace('Z', '+00:00'))
 
-    try:
-        r = requests.get(
-            'https://api.transitous.org/api/v1/plan',
-            headers=HEADERS,
-            params={
-                'fromPlace':      f'{o_lat},{o_lon}',
-                'toPlace':        f'{d_lat},{d_lon}',
-                'numItineraries': 1,
-            },
-            timeout=25,
-        )
-        r.raise_for_status()
-        payload = r.json()
+    # Try primary, then fallback MOTIS endpoint if primary fails/times out
+    MOTIS_ENDPOINTS = [
+        'https://api.transitous.org/api/v1/plan',
+        'https://europe.motis-project.de/api/v1/plan',
+    ]
+    MOTIS_PARAMS = {
+        'fromPlace':      f'{o_lat},{o_lon}',
+        'toPlace':        f'{d_lat},{d_lon}',
+        'numItineraries': 1,
+    }
+
+    payload = None
+    last_err = None
+    for endpoint in MOTIS_ENDPOINTS:
+        try:
+            r = requests.get(endpoint, headers=HEADERS, params=MOTIS_PARAMS, timeout=20)
+            r.raise_for_status()
+            payload = r.json()
+            if payload.get('itineraries'):
+                break          # got a real result — stop trying
+            last_err = payload.get('error', 'No itineraries')
+        except Exception as e:
+            last_err = str(e)
+            continue
+
+    if payload is None:
+        return jsonify({'error': f'Routing unavailable: {last_err}'}), 502
 
         itineraries = payload.get('itineraries', [])
         if not itineraries:
-            err = payload.get('error') or ''
-            return jsonify({'error': str(err) or 'No journey found'}), 404
+            return jsonify({'error': last_err or 'No journey found'}), 404
 
         itin     = itineraries[0]
         legs_raw = itin.get('legs', [])
@@ -742,11 +755,6 @@ def api_transit_time():
         return jsonify({'duration_mins': duration_mins, 'legs': legs_out,
                         'walk_to_dep_m': walk_to_dep_m, 'walk_from_arr_m': walk_from_arr_m})
 
-    except requests.HTTPError as e:
-        body = ''
-        try: body = e.response.text[:200]
-        except: pass
-        return jsonify({'error': f'Transitous API {e.response.status_code}', 'detail': body}), 502
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
