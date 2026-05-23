@@ -3015,9 +3015,9 @@ function _showTransitRetry(idx) {
     el.innerHTML = `
       <span class="transit-real" title="Estimated — live data unavailable">🚶→🚌 ~${label}</span>
       <span style="font-size:.68rem;color:var(--forest-med);opacity:.6">est.</span>
-      <button class="transit-retry-btn" onclick="retryTransit(${idx})" title="Retry live journey">↻</button>`;
+      <button class="transit-retry-btn" onclick="retryTransit(${idx})" title="Load live transit times">↻ Live times</button>`;
   } else {
-    el.innerHTML = `<button class="transit-retry-btn" onclick="retryTransit(${idx})">↻ retry journey</button>`;
+    el.innerHTML = `<button class="transit-retry-btn" onclick="retryTransit(${idx})">↻ Live times</button>`;
   }
 }
 
