@@ -101,6 +101,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
 .jtransit{margin:.12rem 0 .12rem 1.4rem;padding:.2rem .65rem;background:var(--moss);color:white;border-radius:20px;display:inline-block;font-size:.75rem;font-weight:700;line-height:1.4}
 .jwalk{margin:.1rem 0 .1rem 1.4rem;font-size:.75rem;color:var(--forest-med);font-weight:600}
 .jtransit-loading{opacity:.6;animation:trainPulse 1.4s ease-in-out infinite}
+.journey-chain-label{font-size:.68rem;font-weight:600;color:var(--moss);opacity:.7;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.35rem}
 .transit-retry-btn{background:transparent;color:var(--forest-med);border:1.5px dashed var(--forest-med);border-radius:20px;padding:.2rem .65rem;font-size:.74rem;font-weight:600;cursor:pointer;font-family:inherit;-webkit-appearance:none;appearance:none;opacity:.8}
 .transit-retry-btn:hover,.transit-retry-btn:active{opacity:1;border-color:var(--moss);color:var(--moss)}
 .direct-option{display:inline-flex;align-items:center;padding:.2rem .65rem;background:rgba(58,125,82,.1);color:var(--moss);border:1.5px solid rgba(58,125,82,.35);border-radius:20px;font-size:.74rem;font-weight:700;text-decoration:none;white-space:nowrap;transition:all .15s}
@@ -643,35 +644,43 @@ details.api-settings[open] summary{margin-bottom:.85rem}
         </select>
       </div>
 
-      <!-- Trail type sub-selector (updates with activity) -->
-      <div class="input-group" id="trailTypeGroup">
-        <label class="form-section-label">What to search for</label>
-        <div class="chip-row" id="trailTypeChips"></div>
-      </div>
+      <!-- ── Refine (collapsed by default) ── -->
+      <details class="api-settings" id="refineSettings">
+        <summary>Refine search</summary>
+        <div style="display:flex;flex-direction:column;gap:1.1rem;margin-top:.85rem">
 
-      <!-- Terrain preferences -->
-      <div class="input-group">
-        <label class="form-section-label">🗺️ Preferred landscape <span style="font-weight:300">(optional, multi-select)</span></label>
-        <div class="terrain-chips" id="terrainChips">
-          <button type="button" class="terrain-chip" data-terrain="forest"  onclick="toggleTerrain('forest')">🌲 Forest</button>
-          <button type="button" class="terrain-chip" data-terrain="coastal" onclick="toggleTerrain('coastal')">🌊 Coast & sea</button>
-          <button type="button" class="terrain-chip" data-terrain="heath"   onclick="toggleTerrain('heath')">🌾 Heath & dunes</button>
-          <button type="button" class="terrain-chip" data-terrain="hills"   onclick="toggleTerrain('hills')">⛰️ Hills & mountains</button>
-          <button type="button" class="terrain-chip" data-terrain="water"   onclick="toggleTerrain('water')">💧 Lakes & rivers</button>
-          <button type="button" class="terrain-chip" data-terrain="polder"  onclick="toggleTerrain('polder')">🌿 Polder & flat</button>
-          <button type="button" class="terrain-chip" data-terrain="urban"   onclick="toggleTerrain('urban')">🏙️ City & parks</button>
-        </div>
-      </div>
+          <!-- Trail type sub-selector (updates with activity) -->
+          <div class="input-group" id="trailTypeGroup">
+            <label class="form-section-label">What to search for</label>
+            <div class="chip-row" id="trailTypeChips"></div>
+          </div>
 
-      <!-- ── Optional destination ── -->
-      <div class="input-group" id="destinationGroup">
-        <label for="destination" class="dest-opt-label">🗺️ Heading somewhere specific? <span style="font-weight:300">(optional)</span></label>
-        <div id="destHint" style="display:none;font-size:.78rem;color:var(--sunrise);background:rgba(232,98,42,.09);border-radius:8px;padding:.35rem .7rem;margin-bottom:.35rem">💡 For best results with Half-day / Overnight, name a destination — e.g. <em>Veluwe</em>, <em>Black Forest</em>, <em>Snowdonia</em></div>
-        <div class="ac-wrap">
-          <input type="text" id="destination" placeholder="e.g. Black Forest, Veluwe, Snowdonia, Dolomites…" autocomplete="off">
-          <div class="ac-dropdown" id="acDropdownDest"></div>
+          <!-- Terrain preferences -->
+          <div class="input-group">
+            <label class="form-section-label">🗺️ Preferred landscape <span style="font-weight:300">(optional)</span></label>
+            <div class="terrain-chips" id="terrainChips">
+              <button type="button" class="terrain-chip" data-terrain="forest"  onclick="toggleTerrain('forest')">🌲 Forest</button>
+              <button type="button" class="terrain-chip" data-terrain="coastal" onclick="toggleTerrain('coastal')">🌊 Coast & sea</button>
+              <button type="button" class="terrain-chip" data-terrain="heath"   onclick="toggleTerrain('heath')">🌾 Heath & dunes</button>
+              <button type="button" class="terrain-chip" data-terrain="hills"   onclick="toggleTerrain('hills')">⛰️ Hills & mountains</button>
+              <button type="button" class="terrain-chip" data-terrain="water"   onclick="toggleTerrain('water')">💧 Lakes & rivers</button>
+              <button type="button" class="terrain-chip" data-terrain="polder"  onclick="toggleTerrain('polder')">🌿 Polder & flat</button>
+              <button type="button" class="terrain-chip" data-terrain="urban"   onclick="toggleTerrain('urban')">🏙️ City & parks</button>
+            </div>
+          </div>
+
+          <!-- Optional destination -->
+          <div class="input-group" id="destinationGroup">
+            <label for="destination" class="dest-opt-label">🗺️ Heading somewhere specific? <span style="font-weight:300">(optional)</span></label>
+            <div id="destHint" style="display:none;font-size:.78rem;color:var(--sunrise);background:rgba(232,98,42,.09);border-radius:8px;padding:.35rem .7rem;margin-bottom:.35rem">💡 For best results with Half-day / Overnight, name a destination — e.g. <em>Veluwe</em>, <em>Black Forest</em>, <em>Snowdonia</em></div>
+            <div class="ac-wrap">
+              <input type="text" id="destination" placeholder="e.g. Black Forest, Veluwe, Snowdonia, Dolomites…" autocomplete="off">
+              <div class="ac-dropdown" id="acDropdownDest"></div>
+            </div>
+          </div>
+
         </div>
-      </div>
+      </details>
 
       <!-- ── Advanced options (collapsed) ── -->
       <details class="api-settings" id="advancedSettings">
@@ -2208,6 +2217,7 @@ function renderCard(trail, idx) {
     </div>
 
     <div class="journey-chain">
+      <div class="journey-chain-label">Door-to-door by public transport</div>
       <div class="jpoint"><div class="jpoint-dot jpoint-dot-home"></div>🏠 Home</div>
       ${dep ? `<div class="jwalk">🚶 ${fmtLegTime(dep.distFromHome, legLabel) || fmt(dep.distFromHome)}</div>
       <div class="jpoint"><div class="jpoint-dot"></div>${dep.icon} ${dep.name}</div>` : ''}
@@ -2221,7 +2231,7 @@ function renderCard(trail, idx) {
       ${trail.trailMins ? `<span>${trail.icon} ~${fmtMins(trail.trailMins)} on trail</span>` : ''}
       <span class="transit-pill" id="transit-${idx}" style="display:flex;align-items:center;gap:.3rem">
         <span style="display:inline-block;width:12px;height:12px;border-radius:50%;border:2px solid var(--moss);border-top-color:transparent;animation:spin .8s linear infinite"></span>
-        <span style="font-size:.75rem;color:var(--moss)">checking journey…</span>
+        <span style="font-size:.75rem;color:var(--moss)">calculating…</span>
       </span>
       ${directPill}
     </div>
@@ -2374,7 +2384,7 @@ async function doEventSearch() {
       const total = d.duration_mins + walkToDep + walkToTrail;
       const h = Math.floor(total / 60), m = total % 60;
       const label = h > 0 ? `${h}h${m > 0 ? ` ${m}min` : ''}` : `${m}min`;
-      badge.innerHTML = `<span class="transit-real" title="Door-to-door including walking">🚶→🚌 ${label}</span><span style="font-size:.7rem;color:var(--moss);opacity:.75;margin-left:.3rem">door-to-door</span>`;
+      badge.innerHTML = `<span class="transit-real" title="Door-to-door including walking">${label} door-to-door</span>`;
       if (d.legs?.length && legsEl) applyRealLegs('event', d.legs);
     } else {
       badge.innerHTML = `<span style="font-size:.82rem;opacity:.6">Journey time unavailable</span>`;
@@ -3002,8 +3012,8 @@ function _showTransitRetry(idx) {
     ct.textContent = '🚂';
   }
 
-  // Duration badge: show static estimate (already computed at search time)
-  // so the card is still useful even when real-time data is unavailable
+  // Duration badge: show estimated door-to-door time cleanly.
+  // No "est." label, no retry button — "Plan journey" covers real-time routing.
   const el = document.getElementById(`transit-${idx}`);
   if (!el) return;
 
@@ -3012,12 +3022,9 @@ function _showTransitRetry(idx) {
   if (mins && mins > 0) {
     const h = Math.floor(mins / 60), m = mins % 60;
     const label = h > 0 ? `${h}h${m > 0 ? ` ${m}min` : ''}` : `${m}min`;
-    el.innerHTML = `
-      <span class="transit-real" title="Estimated — live data unavailable">🚶→🚌 ~${label}</span>
-      <span style="font-size:.68rem;color:var(--forest-med);opacity:.6">est.</span>
-      <button class="transit-retry-btn" onclick="retryTransit(${idx})" title="Load live transit times">↻ Live times</button>`;
+    el.innerHTML = `<span class="transit-real" title="Estimated door-to-door time">~${label} door-to-door</span>`;
   } else {
-    el.innerHTML = `<button class="transit-retry-btn" onclick="retryTransit(${idx})">↻ Live times</button>`;
+    el.innerHTML = '';
   }
 }
 
@@ -3079,7 +3086,7 @@ function _applyTransitResult(i, d, results) {
     const totalMins = d.duration_mins + walkToDep + walkToTrail;
     const h = Math.floor(totalMins / 60), m = totalMins % 60;
     const label = h > 0 ? `${h}h${m > 0 ? ` ${m}min` : ''}` : `${m}min`;
-    el.innerHTML = `<span class="transit-real" title="Door-to-door: includes walking to/from station">🚶→🚌 ${label}</span><span style="font-size:.7rem;color:var(--moss);opacity:.75;margin-left:.3rem">door-to-door</span>`;
+    el.innerHTML = `<span class="transit-real" title="Door-to-door including walking to/from station">${label} door-to-door</span>`;
     if (trail) trail.journeyMins = totalMins;
     if (d.legs && d.legs.length) {
       applyRealLegs(i, d.legs);
